@@ -353,26 +353,25 @@ document.getElementById('addProjectBtn').addEventListener('click', () => {
     isNew: true
   };
 
-  state.projects.unshift(newProj);   // Add at top
+  state.projects.unshift(newProj);           // Add at the top
   localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
 
   renderTable();
   renderCalendar();
   drawLines();
 
-  // Auto-focus name input
+  // Auto-focus the new project name so you can type immediately
   setTimeout(() => {
-    const nameInputs = document.querySelectorAll('.proj-name-input');
-    if (nameInputs.length > 0) {
-      const firstInput = nameInputs[0];
-      firstInput.readOnly = false;
-      firstInput.classList.add('editable');
-      firstInput.focus();
-      firstInput.select();
+    const nameInput = document.querySelector('.proj-name-input');
+    if (nameInput) {
+      nameInput.readOnly = false;
+      nameInput.classList.add('editable');
+      nameInput.style.cursor = 'text';
+      nameInput.focus();
+      nameInput.select();
     }
-  }, 100);
+  }, 80);
 });
-
   state.projects.push(newProj);
   localStorage.setItem('dtracker_projects', JSON.stringify(state.projects)); // Save immediately
 
