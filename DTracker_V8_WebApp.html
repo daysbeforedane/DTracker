@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DTracker — Premiere Pro 2026 Plugin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0d0d; --panel: #141414; --row: #1a1a1a; --row-hover: #202020;
+    --border: #2a2a2a; --border-light: #333; --text: #e8e8e8; --text-dim: #666;
+    --text-mid: #999; --accent-green: #00e87a; --accent-red: #ff4444;
+    --accent-yellow: #ffc233; --accent-blue: #4d9fff;
+    --mono: 'JetBrains Mono', monospace; --sans: 'Inter', sans-serif;
+    --ls: -0.03em; --cal-bg: #000000; --img-opacity: 1;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: var(--ls); height: 100%; overflow: hidden; }
+
+  /* ─── ROLE TOGGLE BAR ─── */
+  .role-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; background: #0a0a0a; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .role-bar-brand { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--accent-green); letter-spacing: 0.1em; }
+  .role-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+  .role-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.05em; }
+  .role-toggle {
+    position: relative; width: 48px; height: 22px; cursor: pointer;
+    background: var(--row); border: 1px solid var(--border-light); border-radius: 12px;
+    transition: all 0.2s;
+  }
+  .role-toggle.editor-mode { background: rgba(0,232,122,0.12); border-color: var(--accent-green); }
+  .role-toggle-knob {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--text-dim); transition: all 0.2s;
+  }
+  .role-toggle.editor-mode .role-toggle-knob { left: 28px; background: var(--accent-green); }
+  .role-mode-txt { font-family: var(--mono); font-size: 9px; letter-spacing: 0.05em; color: var(--text-mid); min-width: 60px; }
+  .role-mode-txt.editor { color: var(--accent-green); }
+
+  /* ─── NOTIFICATION BELL ─── */
+  .notif-bell-wrap { position: relative; cursor: pointer; }
+  .notif-bell {
+    width: 24px; height: 24px; border-radius: 4px; background: var(--row);
+    border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); transition: all 0.15s;
+  }
+  .notif-bell:hover { border-color: var(--border-light); color: var(--text); }
+  .notif-badge {
+    position: absolute; top: -4px; right: -4px; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--accent-red); font-size: 8px;
+    font-family: var(--mono); color: #fff; display: none; align-items: center;
+    justify-content: center; font-weight: 700; border: 1px solid var(--bg);
+  }
+  .notif-badge.show { display: flex; }
+
+  /* ─── NOTIFICATION PANEL ─── */
+  .notif-panel {
+    position: fixed; right: 8px; top: 50px; width: 280px; max-height: 400px;
+    background: #1a1a1a; border: 1px solid var(--border-light); border-radius: 8px;
+    z-index: 1000; display: none; flex-direction: column; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+  }
+  .notif-panel.open { display: flex; }
+  .notif-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .notif-clear-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-family: var(--mono); font-size: 8px; padding: 2px 6px; border-radius: 3px;
+    border: 1px solid var(--border); transition: all 0.1s;
+  }
+  .notif-clear-btn:hover { color: var(--accent-red); border-color: var(--accent-red); }
+  .notif-list { overflow-y: auto; flex: 1; }
+  .notif-list::-webkit-scrollbar { width: 2px; }
+  .notif-list::-webkit-scrollbar-thumb { background: var(--border-light); }
+  .notif-item {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.1s; position: relative;
+  }
+  .notif-item:hover { background: var(--row-hover); }
+  .notif-item.unread { background: rgba(0,232,122,0.04); }
+  .notif-item.unread::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--accent-green);
+  }
+  .notif-item-title { font-family: var(--sans); font-size: 10px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .notif-item-body { font-family: var(--sans); font-size: 9px; color: var(--text-dim); line-height: 1.4; }
+  .notif-item-time { font-family: var(--mono); font-size: 8px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ─── POPUP TOAST NOTIFICATION ─── */
+  .toast-container { position: fixed; top: 50px; right: 12px; z-index: 2000; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  .toast {
+    background: #1e1e1e; border: 1px solid var(--accent-green); border-radius: 6px;
+    padding: 10px 14px; min-width: 220px; max-width: 300px;
+    box-shadow: 0 6px 24px rgba(0,232,122,0.2); pointer-events: all;
+    animation: toast-in 0.3s ease; position: relative; overflow: hidden;
+  }
+  .toast::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent-green); }
+  @keyframes toast-in { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes toast-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+  .toast.removing { animation: toast-out 0.3s ease forwards; }
+  .toast-title { font-family: var(--sans); font-size: 10px; font-weight: 700; color: var(--accent-green); margin-bottom: 3px; }
+  .toast-body { font-family: var(--sans); font-size: 9px; color: var(--text-mid); line-height: 1.4; }
+  .toast-close { position: absolute; top: 6px; right: 8px; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; }
+
+  /* ─── SYNC STATUS ─── */
+  .sync-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim);
+    display: inline-block; margin-right: 4px; transition: background 0.3s;
+  }
+  .sync-dot.synced { background: var(--accent-green); }
+  .sync-dot.syncing { background: var(--accent-yellow); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .sync-label { font-family: var(--mono); font-size: 8px; color: var(--text-dim); }
+
+  /* ─── PLUGIN WRAPPER ─── */
+  .plugin { width: 100%; height: 100vh; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); overflow: hidden; position: relative; }
+
+  /* ─── TOP CONTROLS BAR ─── */
+  .top-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
+  .top-bar-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .top-bar-right { display: flex; align-items: center; gap: 6px; }
+  .cal-btn { background: var(--row); border: 1px solid var(--border-light); color: var(--text); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: var(--ls); display: flex; align-items: center; gap: 5px; transition: background 0.15s; }
+  .cal-btn:hover { background: #252525; }
+  .cal-btn svg { opacity: 0.7; }
+  .lines-toggle { background: var(--row); border: 1px solid var(--border-light); color: var(--text-mid); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-family: var(--mono); letter-spacing: 0.05em; transition: all 0.15s; display: flex; align-items: center; gap: 4px; }
+  .lines-toggle.active { color: var(--accent-green); border-color: var(--accent-green); }
+  .lines-toggle:hover { background: #252525; }
+  .opacity-icon-btn { position: relative; background: var(--row); border: 1px solid var(--border); border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-mid); transition: border-color 0.15s, color 0.15s; }
+  .opacity-icon-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .opacity-icon-btn svg { opacity: 0.7; pointer-events: none; }
+  .opacity-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 6px; padding: 10px 8px 6px; display: none; flex-direction: column; align-items: center; gap: 5px; box-shadow: 0 6px 24px rgba(0,0,0,0.8); z-index: 9999; min-width: 36px; }
+  .opacity-icon-btn.open .opacity-popup { display: flex; }
+  .opacity-popup input[type=range] { writing-mode: vertical-lr; direction: rtl; width: 4px; height: 60px; accent-color: var(--accent-green); cursor: pointer; appearance: slider-vertical; -webkit-appearance: slider-vertical; }
+  .opacity-popup span { font-size: 8px; font-family: var(--mono); color: var(--text-dim); white-space: nowrap; }
+
+  /* ─── MAIN BODY ─── */
+  .main-body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ─── CALENDAR PANEL ─── */
+  .calendar-panel { width: 210px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .cal-img-area { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+  .cal-img-area img { width: 100%; height: 100%; object-fit: cover; opacity: var(--img-opacity); transition: opacity 0.2s; }
+  .cal-img-placeholder { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12px; }
+  .cal-top { position: relative; z-index: 1; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px; flex: 1; }
+  .cal-bg-layer { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: var(--cal-bg); }
+  .cal-top > *:not(.cal-bg-layer) { position: relative; z-index: 1; }
+  .month-header { display: flex; align-items: center; justify-content: space-between; }
+  .month-title { font-family: var(--sans); font-size: 11px; font-weight: 700; color: var(--text); letter-spacing: var(--ls); }
+  .month-nav { display: flex; gap: 2px; }
+  .month-nav button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 11px; padding: 0 3px; transition: color 0.1s; }
+  .month-nav button:hover { color: var(--text); }
+  .day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .day-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 2px; border-radius: 3px; cursor: pointer; position: relative; transition: background 0.1s; }
+  .day-cell:hover { background: rgba(255,255,255,0.05); }
+  .day-cell .day-num { font-family: var(--mono); font-size: 9px; color: var(--text-dim); line-height: 1; }
+  .day-cell.has-project .day-num { color: var(--text-mid); }
+  .day-cell.today .day-num { color: var(--text); background: rgba(255,255,255,0.1); border-radius: 2px; padding: 0 2px; }
+  .day-dots { display: flex; flex-wrap: wrap; gap: 1px; justify-content: center; margin-top: 1px; }
+  .day-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ─── PROJECT TABLE ─── */
+  .table-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .table-head { display: grid; grid-template-columns: 1fr 1px 90px 1px 50px 1px 80px 1px 110px 1px 130px 1px 1fr 44px; gap: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
+  .th { font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-dim); text-transform: uppercase; }
+  .table-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+  .table-body::-webkit-scrollbar { width: 3px; }
+  .table-body::-webkit-scrollbar-track { background: transparent; }
+  .table-body::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+  /* Project row */
+  .project-row { display: grid; grid-template-columns: 1fr 1px 90px 1px 50px 1px 80px 1px 110px 1px 130px 1px 1fr 44px; gap: 0; padding: 0 12px; border-bottom: 1px solid var(--border); min-height: 36px; align-items: center; cursor: pointer; transition: background 0.12s, opacity 0.2s; position: relative; }
+  .project-row:hover { background: var(--row-hover); }
+  .project-row.selected { background: rgba(255,255,255,0.04); }
+  .project-row.multi-selected { background: rgba(77,159,255,0.07); outline: 1px solid rgba(77,159,255,0.25); outline-offset: -1px; }
+  .project-row.dimmed { opacity: 0.1; pointer-events: none; }
+  .project-row.finished .proj-name { text-decoration: line-through; color: var(--text-dim); }
+  /* New project highlight */
+  .project-row.new-assigned { animation: newAssignedPulse 2s ease infinite; }
+  @keyframes newAssignedPulse { 0%,100% { background: rgba(0,232,122,0.06); } 50% { background: rgba(0,232,122,0.14); } }
+  .project-row.new-assigned::after { content: 'NEW'; position: absolute; right: 52px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 7px; font-weight: 700; color: var(--accent-green); background: rgba(0,232,122,0.15); padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(0,232,122,0.3); letter-spacing: 0.1em; pointer-events: none; }
+
+  .row-num { font-family: var(--mono); font-size: 9px; color: var(--text-dim); }
+  .proj-name-cell { display: flex; align-items: center; gap: 7px; padding-right: 8px; }
+  .proj-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); }
+  .proj-name { font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: var(--ls); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .proj-name-input { background: none; border: none; color: var(--text); font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: var(--ls); outline: none; width: 100%; cursor: default; user-select: none; }
+  .proj-name-input.editable { cursor: text; user-select: text; background: rgba(77,159,255,0.06); border-radius: 2px; padding: 1px 3px; }
+  .proj-name-input::placeholder { color: var(--text-dim); font-weight: 400; }
+
+  /* ─── RIGHT-CLICK CONTEXT MENU ─── */
+  .ctx-menu {
+    position: fixed; background: #1e1e1e; border: 1px solid var(--border-light);
+    border-radius: 6px; padding: 4px; z-index: 3000; min-width: 160px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.8); display: none;
+  }
+  .ctx-menu.visible { display: block; }
+  .ctx-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    border-radius: 4px; cursor: pointer; font-family: var(--sans); font-size: 10px;
+    color: var(--text-mid); transition: all 0.1s; letter-spacing: var(--ls);
+  }
+  .ctx-item:hover { background: var(--row-hover); color: var(--text); }
+  .ctx-item.danger:hover { color: var(--accent-red); background: rgba(255,68,68,0.08); }
+  .ctx-item svg { opacity: 0.6; flex-shrink: 0; }
+  .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+  .ctx-col-name { font-family: var(--mono); font-size: 8px; color: var(--text-dim); padding: 4px 10px 2px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* Assigned cell */
+  .assigned-cell { display: flex; align-items: center; gap: 3px; }
+  .avatar { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 600; font-family: var(--sans); border: 1px solid var(--bg); flex-shrink: 0; cursor: pointer; overflow: hidden; position: relative; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .avatar-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 600; }
+  .avatar-add { width: 20px; height: 20px; border-radius: 50%; border: 1px dashed var(--border-light); color: var(--text-dim); display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .avatar-add:hover { border-color: var(--text-mid); color: var(--text-mid); }
+  .status-icon.delayed { color: var(--accent-red); }
+  .status-icon.wip { color: var(--accent-yellow); }
+  .status-icon.done { color: var(--accent-green); }
+  .deadline-input { background: none; border: none; color: var(--text-mid); font-family: var(--sans); font-size: 10px; font-weight: 400; letter-spacing: var(--ls); outline: none; width: 80px; cursor: pointer; }
+  .deadline-input::placeholder { color: var(--text-dim); }
+  .frame-link-cell { display: flex; align-items: center; overflow: hidden; }
+  .frame-link { font-family: var(--sans); font-size: 9px; font-weight: 400; letter-spacing: var(--ls); color: var(--accent-blue); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.8; transition: opacity 0.1s; cursor: pointer; }
+  .frame-link:hover { opacity: 1; text-decoration: underline; }
+  .frame-link-input { background: none; border: none; color: var(--text-dim); font-family: var(--sans); font-size: 9px; font-weight: 400; letter-spacing: var(--ls); outline: none; width: 100%; cursor: default; }
+  .frame-link-input.editable { cursor: text; }
+  .frame-link-input::placeholder { color: var(--text-dim); }
+
+  /* ─── FOOTAGE ─── */
+  .footage-cell { display: flex; align-items: center; gap: 4px; padding: 0 4px; overflow: hidden; position: relative; }
+  .footage-chips { display: flex; align-items: center; gap: 3px; overflow: hidden; flex: 1; }
+  .footage-chip { display: flex; align-items: center; gap: 3px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; padding: 2px 5px; font-family: var(--sans); font-size: 8px; font-weight: 400; letter-spacing: var(--ls); color: var(--accent-blue); white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: border-color 0.1s, background 0.1s; flex-shrink: 0; }
+  .footage-chip:hover { background: rgba(77,159,255,0.1); border-color: rgba(77,159,255,0.4); }
+  .footage-chip.text-chip { color: var(--text-mid); }
+  .footage-chip.img-chip { color: var(--accent-green); }
+  .footage-chip-del { font-size: 9px; color: var(--text-dim); line-height: 1; cursor: pointer; padding: 0 1px; flex-shrink: 0; transition: color 0.1s; }
+  .footage-chip-del:hover { color: var(--accent-red); }
+  .footage-add-btn { background: none; border: 1px dashed var(--border); border-radius: 3px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-dim); font-size: 12px; line-height: 1; transition: all 0.15s; flex-shrink: 0; }
+  .footage-add-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77,159,255,0.06); }
+
+  /* Footage popup */
+  .footage-popup { position: fixed; background: #1c1c1c; border: 1px solid var(--border-light); border-radius: 6px; padding: 10px; z-index: 500; display: none; flex-direction: column; gap: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.7); min-width: 260px; max-width: 340px; }
+  .footage-popup.visible { display: flex; }
+  .footage-popup-title { font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-dim); text-transform: uppercase; }
+  .footage-popup-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+  .footage-popup-list::-webkit-scrollbar { width: 2px; }
+  .footage-popup-list::-webkit-scrollbar-thumb { background: var(--border-light); }
+  .footage-popup-item { display: flex; align-items: center; gap: 5px; background: var(--row); border-radius: 4px; padding: 5px 7px; }
+  .footage-popup-item-thumb { width: 28px; height: 20px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
+  .footage-popup-item-text { flex: 1; font-family: var(--sans); font-size: 9px; font-weight: 400; letter-spacing: var(--ls); color: var(--accent-blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .footage-popup-item-text.is-text { color: var(--text-mid); cursor: default; }
+  .footage-popup-item-text.is-img { color: var(--accent-green); }
+  .footage-popup-item-del { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 10px; padding: 0 2px; transition: color 0.1s; }
+  .footage-popup-item-del:hover { color: var(--accent-red); }
+  .footage-popup-input-row { display: flex; gap: 4px; }
+  .footage-popup-input { flex: 1; background: var(--row); border: 1px solid var(--border); color: var(--text); font-family: var(--sans); font-size: 10px; font-weight: 400; letter-spacing: var(--ls); padding: 5px 7px; border-radius: 4px; outline: none; transition: border-color 0.15s; }
+  .footage-popup-input:focus { border-color: var(--accent-blue); }
+  .footage-popup-input::placeholder { color: var(--text-dim); }
+  .footage-popup-add-confirm { background: var(--row); border: 1px solid var(--border-light); color: var(--text-mid); font-family: var(--sans); font-size: 9px; font-weight: 500; letter-spacing: var(--ls); padding: 5px 9px; border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .footage-popup-add-confirm:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+  /* Paste image area */
+  .footage-paste-zone { border: 1px dashed var(--border-light); border-radius: 4px; padding: 8px; text-align: center; font-family: var(--sans); font-size: 8px; color: var(--text-dim); cursor: pointer; transition: all 0.15s; position: relative; }
+  .footage-paste-zone:hover, .footage-paste-zone.drag-over { border-color: var(--accent-green); color: var(--accent-green); background: rgba(0,232,122,0.04); }
+  .footage-paste-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  /* Version name cell */
+  .version-cell { font-family: var(--sans); font-size: 9px; font-weight: 400; letter-spacing: var(--ls); color: var(--text-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; display: flex; align-items: center; gap: 4px; }
+  .version-input { background: none; border: none; color: var(--text-dim); font-family: var(--sans); font-size: 9px; font-weight: 400; letter-spacing: var(--ls); outline: none; flex: 1; cursor: default; }
+  .version-input.editable { cursor: text; }
+  .version-input::placeholder { color: var(--text-dim); }
+
+  /* ─── CONNECTION LINES CANVAS ─── */
+  .lines-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; image-rendering: pixelated; }
+
+  /* ─── COLOR PICKER POPUP ─── */
+  .color-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; z-index: 200; display: none; flex-direction: column; gap: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 200px; }
+  .color-popup.visible { display: flex; }
+  .color-wheel-wrap { position: relative; width: 140px; height: 140px; margin: 0 auto; }
+  .color-wheel-wrap canvas { border-radius: 50%; cursor: crosshair; }
+  .color-values { display: flex; flex-direction: column; gap: 4px; }
+  .color-val-row { display: flex; align-items: center; gap: 6px; }
+  .color-val-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); width: 28px; }
+  .color-val-input { background: var(--row); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 3px 6px; border-radius: 3px; outline: none; flex: 1; }
+  .color-preview-swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--border-light); }
+
+  /* ─── CALENDAR POPUP ─── */
+  .cal-month-popup { position: fixed; background: #1a1a1a; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; z-index: 200; display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 180px; }
+  .cal-month-popup.visible { display: block; }
+  .cal-month-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; }
+  .cal-month-item { font-family: var(--mono); font-size: 9px; padding: 5px 4px; text-align: center; border-radius: 3px; cursor: pointer; color: var(--text-mid); border: 1px solid transparent; transition: all 0.1s; }
+  .cal-month-item:hover { background: var(--row-hover); color: var(--text); }
+  .cal-month-item.current { border-color: var(--border-light); color: var(--text); }
+  .cal-year-header { font-family: var(--mono); font-size: 10px; color: var(--text-dim); text-align: center; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .cal-year-header button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 11px; }
+  .cal-year-header button:hover { color: var(--text); }
+
+  /* Image upload drop zone */
+  .img-drop-zone { position: relative; padding: 6px 10px; border: 1px dashed var(--border-light); border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; font-size: 9px; color: var(--text-dim); font-family: var(--sans); font-weight: 400; letter-spacing: var(--ls); transition: all 0.15s; background: rgba(0,0,0,0.5); }
+  .img-drop-zone:hover { border-color: var(--text-dim); color: var(--text-mid); background: rgba(0,0,0,0.65); }
+  .img-drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+  /* Selected row left stripe */
+  .project-row.selected::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; border-radius: 0 1px 1px 0; }
+
+  /* Tooltip */
+  .tooltip { position: fixed; background: #252525; border: 1px solid var(--border-light); color: var(--text-mid); font-family: var(--mono); font-size: 9px; padding: 4px 8px; border-radius: 4px; pointer-events: none; z-index: 300; opacity: 0; transition: opacity 0.1s; white-space: nowrap; }
+  .tooltip.show { opacity: 1; }
+
+  /* Remove button */
+  .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 3px; border-radius: 3px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0; transition: opacity 0.15s, color 0.15s, background 0.15s; }
+  .project-row:hover .remove-btn { opacity: 1; }
+  .remove-btn:hover { color: var(--accent-red) !important; background: rgba(255,68,68,0.08); opacity: 1 !important; }
+
+  /* Column separators */
+  .col-sep { background: var(--border); height: 16px; align-self: center; }
+  .col-sep-line { width: 1px; background: var(--border); align-self: stretch; margin: 6px 0; flex-shrink: 0; }
+
+  /* Status cell */
+  .status-cell { display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .status-icon { font-size: 10px; }
+  .deadline-cell { display: flex; align-items: center; gap: 4px; padding: 0 6px; }
+  .upload-cell { display: flex; align-items: center; justify-content: center; }
+  .upload-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+  .upload-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77,159,255,0.06); }
+
+  /* Add project btn */
+  .top-bar .add-project-btn { background: rgba(0,232,122,0.08); border: 1px solid var(--accent-green); color: var(--accent-green); padding: 4px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .top-bar .add-project-btn:hover { background: rgba(0,232,122,0.15); }
+
+  /* ─── EDITOR POPUP ─── */
+  .editor-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; z-index: 200; display: none; flex-direction: column; gap: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 180px; }
+  .editor-popup.visible { display: flex; }
+  .editor-popup-title { font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 2px; }
+  .editor-list { display: flex; flex-direction: column; gap: 3px; }
+  .editor-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px; border-radius: 4px; background: var(--row); cursor: pointer; transition: background 0.1s; }
+  .editor-item:hover { background: var(--row-hover); }
+  .editor-item-left { display: flex; align-items: center; gap: 6px; }
+  .editor-item-av { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 600; font-family: var(--sans); color: #fff; overflow: hidden; flex-shrink: 0; position: relative; cursor: pointer; }
+  .editor-item-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .editor-item-av-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .editor-item-av:hover::after { content: '✎'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); font-size: 10px; }
+  .editor-item-name { font-family: var(--mono); font-size: 10px; color: var(--text); }
+  .editor-item-check { font-size: 10px; color: var(--accent-green); opacity: 0; }
+  .editor-item.assigned .editor-item-check { opacity: 1; }
+  .editor-item.assigned { background: rgba(0,232,122,0.06); }
+  .editor-add-row { display: flex; gap: 4px; margin-top: 2px; }
+  .editor-new-input { background: var(--row); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 4px 6px; border-radius: 4px; outline: none; flex: 1; }
+  .editor-new-input::placeholder { color: var(--text-dim); }
+  .editor-add-confirm { background: var(--row); border: 1px solid var(--border-light); color: var(--text-mid); font-family: var(--mono); font-size: 9px; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+  .editor-add-confirm:hover { border-color: var(--accent-green); color: var(--accent-green); }
+
+  /* ─── DEADLINE CALENDAR PICKER ─── */
+  .deadline-cal-popup { position: fixed; background: #1a1a1a; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; z-index: 200; display: none; flex-direction: column; gap: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); width: 180px; }
+  .deadline-cal-popup.visible { display: flex; }
+  .dlcal-header { display: flex; align-items: center; justify-content: space-between; }
+  .dlcal-title { font-family: var(--mono); font-size: 10px; color: var(--text); letter-spacing: 0.06em; }
+  .dlcal-nav { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; transition: color 0.1s; padding: 0 2px; }
+  .dlcal-nav:hover { color: var(--text); }
+  .dlcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .dlcal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 3px; cursor: pointer; font-family: var(--mono); font-size: 9px; color: var(--text-dim); transition: background 0.1s, color 0.1s; }
+  .dlcal-cell:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .dlcal-cell.selected { background: var(--accent-green); color: #000; font-weight: 600; }
+  .dlcal-cell.today-mark { color: var(--text); border: 1px solid var(--border-light); }
+  .dlcal-cell.blank { pointer-events: none; }
+
+  /* ─── IMAGE VIEWER OVERLAY ─── */
+  .img-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 5000; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+  .img-viewer.open { display: flex; }
+  .img-viewer img { max-width: 90vw; max-height: 90vh; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
+
+  /* Multi-select info bar */
+  .multisel-bar { display: none; position: sticky; bottom: 0; background: #1a1a1a; border-top: 1px solid var(--border-light); padding: 6px 14px; font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.05em; align-items: center; gap: 8px; }
+  .multisel-bar.show { display: flex; }
+  .multisel-count { color: var(--accent-blue); font-weight: 600; }
+  .multisel-clear { background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--text-dim); font-size: 8px; font-family: var(--mono); padding: 2px 6px; cursor: pointer; transition: all 0.1s; }
+  .multisel-clear:hover { border-color: var(--accent-red); color: var(--accent-red); }
+
+  /* ─── HIDDEN FILE INPUT FOR AVATAR ─── */
+  #avatarFileInput { display: none; }
+</style>
+</head>
+<body>
+
+<div class="plugin" id="plugin">
+
+  <!-- ROLE BAR -->
+  <div class="role-bar">
+    <span class="role-bar-brand">⬡ DTRACKER</span>
+    <div class="role-toggle-wrap">
+      <span class="sync-dot synced" id="syncDot"></span>
+      <span class="sync-label" id="syncLabel">Synced</span>
+      &nbsp;&nbsp;
+      <span class="role-label" id="roleLabelLeft">ASSIGNER</span>
+      <div class="role-toggle" id="roleToggle" title="Toggle between Task Assigner and Editor view">
+        <div class="role-toggle-knob"></div>
+      </div>
+      <span class="role-mode-txt" id="roleLabelRight">EDITOR</span>
+    </div>
+    <div class="notif-bell-wrap" id="notifBellWrap">
+      <div class="notif-bell" id="notifBell" title="Notifications">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M6 1.5A3.5 3.5 0 0 0 2.5 5v2.5l-1 1.5h9l-1-1.5V5A3.5 3.5 0 0 0 6 1.5z" stroke="currentColor" stroke-width="1" fill="none"/>
+          <path d="M4.5 9.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+      <div class="notif-badge" id="notifBadge"></div>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <button class="cal-btn" id="monthBtn" title="Cycle months">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="2" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1"/><path d="M3 1v2M7 1v2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><path d="M1 5h8" stroke="currentColor" stroke-width="0.8"/></svg>
+        <span id="monthBtnLabel">March 2026</span>
+        <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M1.5 2.5L3.5 4.5L5.5 2.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+      </button>
+      <button class="lines-toggle active" id="linesToggle" title="Toggle connection lines">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 2h8M1 5h5M1 8h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+      </button>
+      <button class="add-project-btn" id="addProjectBtn" title="New Project (Ctrl+N)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="top-bar-right">
+      <div class="opacity-icon-btn" id="imgOpacityBtn" title="Image opacity">
+        <svg width="11" height="11" viewBox="0 0 10 10" fill="none"><rect x="1.5" y="1.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1"/><path d="M1.5 8.5L8.5 1.5" stroke="currentColor" stroke-width="0.8"/></svg>
+        <div class="opacity-popup" id="imgOpacityPopup">
+          <input type="range" min="0" max="100" value="100" id="imgOpacity" orient="vertical">
+          <span id="imgOpacityVal">100%</span>
+        </div>
+      </div>
+      <div class="opacity-icon-btn" id="calOpacityBtn" title="Calendar background opacity">
+        <svg width="11" height="11" viewBox="0 0 10 10" fill="none"><rect x="1.5" y="1.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1"/><circle cx="5" cy="5" r="2" fill="currentColor" opacity="0.5"/></svg>
+        <div class="opacity-popup" id="calOpacityPopup">
+          <input type="range" min="0" max="100" value="100" id="calOpacity" orient="vertical">
+          <span id="calOpacityVal">100%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN BODY -->
+  <div class="main-body">
+    <!-- CALENDAR PANEL -->
+    <div class="calendar-panel" id="calPanel">
+      <div class="cal-img-area" id="calImgArea">
+        <div class="cal-img-placeholder">
+          <div class="img-drop-zone" title="Add image or GIF">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="0.9"/><path d="M5.5 3.5v4M3.5 5.5h4" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/></svg>
+            Add image / GIF
+            <input type="file" accept="image/*,.gif" id="imgUpload">
+          </div>
+        </div>
+      </div>
+      <div class="cal-top">
+        <div class="cal-bg-layer" id="calBgLayer"></div>
+        <div class="month-header">
+          <span class="month-title" id="calMonthTitle">March 2026</span>
+          <div class="month-nav">
+            <button id="prevMonth">&#8249;</button>
+            <button id="nextMonth">&#8250;</button>
+          </div>
+        </div>
+        <div class="day-grid" id="dayGrid"></div>
+      </div>
+    </div>
+
+    <!-- TABLE PANEL -->
+    <div class="table-panel">
+      <div class="table-head">
+        <span class="th">Project</span>
+        <span class="th col-sep"></span>
+        <span class="th">Assigned</span>
+        <span class="th col-sep"></span>
+        <span class="th">Status</span>
+        <span class="th col-sep"></span>
+        <span class="th">Deadline</span>
+        <span class="th col-sep"></span>
+        <span class="th">Footage</span>
+        <span class="th col-sep"></span>
+        <span class="th">Frame Link</span>
+        <span class="th col-sep"></span>
+        <span class="th">Version Name</span>
+        <span class="th">Upload</span>
+      </div>
+      <div class="table-body" id="tableBody"></div>
+      <div class="multisel-bar" id="multiselBar">
+        <span>Selected: <span class="multisel-count" id="multiselCount">0</span> projects</span>
+        <button class="multisel-clear" id="multiselClear">Clear (Esc)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CANVAS FOR CONNECTION LINES -->
+<canvas class="lines-canvas" id="linesCanvas"></canvas>
+
+<!-- RIGHT-CLICK CONTEXT MENU -->
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-col-name" id="ctxColName">Column</div>
+  <div class="ctx-item" id="ctxEdit">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 8.5l1.5-1.5 5-5 1 1-5 5-1.5 1.5H1.5v-1.5z" stroke="currentColor" stroke-width="0.8"/></svg>
+    Edit text
+  </div>
+  <div class="ctx-item" id="ctxOpenLink">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M4 2H2.5A1.5 1.5 0 001 3.5v4A1.5 1.5 0 002.5 9h4A1.5 1.5 0 008 7.5V6" stroke="currentColor" stroke-width="0.8"/><path d="M5.5 1H9v3.5M9 1L4.5 5.5" stroke="currentColor" stroke-width="0.8" stroke-linecap="round"/></svg>
+    Open link
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctxMarkDone">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+    Mark as Done
+  </div>
+  <div class="ctx-item" id="ctxDuplicate">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="0.8"/><path d="M3.5 3V2.5A1.5 1.5 0 015 1h2.5A1.5 1.5 0 019 2.5V5A1.5 1.5 0 017.5 6.5H7" stroke="currentColor" stroke-width="0.8"/></svg>
+    Duplicate row
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctxDelete">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3h6M4 3V2h2v1M8.5 3l-.5 6h-5L2.5 3" stroke="currentColor" stroke-width="0.8" stroke-linecap="round"/></svg>
+    Delete project
+  </div>
+</div>
+
+<!-- COLOR PICKER POPUP -->
+<div class="color-popup" id="colorPopup">
+  <canvas id="colorWheel" width="140" height="140"></canvas>
+  <div class="color-values">
+    <div class="color-val-row">
+      <div class="color-val-label">HEX</div>
+      <input class="color-val-input" id="hexInput" value="#ff4d4d" maxlength="7">
+      <div class="color-preview-swatch" id="colorSwatch"></div>
+    </div>
+    <div class="color-val-row"><div class="color-val-label">R</div><input class="color-val-input" id="rInput" value="255" type="number" min="0" max="255"></div>
+    <div class="color-val-row"><div class="color-val-label">G</div><input class="color-val-input" id="gInput" value="77" type="number" min="0" max="255"></div>
+    <div class="color-val-row"><div class="color-val-label">B</div><input class="color-val-input" id="bInput" value="77" type="number" min="0" max="255"></div>
+  </div>
+</div>
+
+<!-- CALENDAR MONTH POPUP -->
+<div class="cal-month-popup" id="calMonthPopup">
+  <div class="cal-year-header">
+    <button id="prevYear">&#8249;</button>
+    <span id="popupYear">2026</span>
+    <button id="nextYear">&#8250;</button>
+  </div>
+  <div class="cal-month-list" id="monthList"></div>
+</div>
+
+<!-- EDITOR ASSIGN POPUP -->
+<div class="editor-popup" id="editorPopup">
+  <div class="editor-popup-title">Assign Editor</div>
+  <div class="editor-list" id="editorList"></div>
+  <div class="editor-add-row">
+    <input class="editor-new-input" id="editorNewInput" placeholder="Initials (e.g. JD)" maxlength="3">
+    <button class="editor-add-confirm" id="editorAddConfirm">Add</button>
+  </div>
+</div>
+
+<!-- DEADLINE CALENDAR PICKER POPUP -->
+<div class="deadline-cal-popup" id="deadlineCalPopup">
+  <div class="dlcal-header">
+    <button class="dlcal-nav" id="dlPrevMonth">&#8249;</button>
+    <span class="dlcal-title" id="dlCalTitle">March 2026</span>
+    <button class="dlcal-nav" id="dlNextMonth">&#8250;</button>
+  </div>
+  <div class="dlcal-grid" id="dlCalGrid"></div>
+</div>
+
+<!-- FOOTAGE LINKS POPUP -->
+<div class="footage-popup" id="footagePopup">
+  <div class="footage-popup-title">Footage, Links &amp; Images</div>
+  <div class="footage-popup-list" id="footageList"></div>
+  <div class="footage-paste-zone" id="footagePasteZone" title="Click to upload or paste image (Ctrl+V)">
+    📎 Click to add image, or Ctrl+V to paste
+    <input type="file" accept="image/*" id="footageImgInput">
+  </div>
+  <div class="footage-popup-input-row">
+    <input class="footage-popup-input" id="footageInput" placeholder="Paste link, drive URL or text…">
+    <button class="footage-popup-add-confirm" id="footageAddBtn">Add</button>
+  </div>
+</div>
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-header">
+    Notifications
+    <button class="notif-clear-btn" id="notifClearBtn">Clear all</button>
+  </div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- IMAGE VIEWER -->
+<div class="img-viewer" id="imgViewer">
+  <img id="imgViewerImg" src="" alt="">
+</div>
+
+<!-- HIDDEN AVATAR FILE INPUT -->
+<input type="file" id="avatarFileInput" accept="image/*">
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+'use strict';
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let state = {
+  currentYear: 2026,
+  currentMonth: 2,
+  showLines: true,
+  selectedProject: null,
+  multiSelected: new Set(), // multi-select with Ctrl
+  colorPickerTarget: null,
+  popupYear: 2026,
+  isEditorMode: false, // false = Assigner, true = Editor
+  notifications: [],
+  projects: [
+    { id:1, name:'SD_Women_Leader_V1', color:'#e05555', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'wip', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:2, name:'SD_Women_Leader_V1', color:'#4d9fff', assigned:['D'], deadline:'19 Mar', deadlineDay:19, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:3, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:['S'], deadline:'26 Mar', deadlineDay:26, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:4, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:[], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:5, name:'SD_Women_Leader_V1', color:'#f0c330', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'done', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+  ]
+};
+
+// Editor pool — each editor can have a custom avatar image (dataURL)
+const EDITOR_POOL = [
+  { initials: 'D', color: '#5b6cf9', avatarImg: null },
+  { initials: 'S', color: '#e05555', avatarImg: null },
+];
+
+// ── ROLE TOGGLE ───────────────────────────────────────────────────────────────
+const roleToggleEl = document.getElementById('roleToggle');
+const roleLabelRight = document.getElementById('roleLabelRight');
+roleToggleEl.addEventListener('click', () => {
+  state.isEditorMode = !state.isEditorMode;
+  roleToggleEl.classList.toggle('editor-mode', state.isEditorMode);
+  roleLabelRight.className = 'role-mode-txt' + (state.isEditorMode ? ' editor' : '');
+  roleLabelRight.textContent = state.isEditorMode ? 'EDITOR' : 'EDITOR';
+  document.getElementById('roleLabelLeft').style.opacity = state.isEditorMode ? '0.4' : '1';
+});
+
+// ── NOTIFICATION SYSTEM ───────────────────────────────────────────────────────
+function addNotification(title, body, projId) {
+  const notif = { id: Date.now(), title, body, projId, read: false, time: new Date() };
+  state.notifications.unshift(notif);
+  updateNotifBadge();
+  renderNotifList();
+  showToast(title, body, projId);
+  // Highlight the project row
+  if (projId) {
+    const proj = state.projects.find(p => p.id === projId);
+    if (proj) { proj.isNew = true; renderTable(); }
+  }
+}
+
+function updateNotifBadge() {
+  const unread = state.notifications.filter(n => !n.read).length;
+  const badge = document.getElementById('notifBadge');
+  badge.textContent = unread > 9 ? '9+' : unread;
+  badge.classList.toggle('show', unread > 0);
+}
+
+function renderNotifList() {
+  const list = document.getElementById('notifList');
+  list.innerHTML = '';
+  if (state.notifications.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:16px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text-dim);';
+    empty.textContent = 'No notifications';
+    list.appendChild(empty);
+    return;
+  }
+  state.notifications.forEach(n => {
+    const item = document.createElement('div');
+    item.className = 'notif-item' + (n.read ? '' : ' unread');
+    item.innerHTML = `
+      <div class="notif-item-title">${n.title}</div>
+      <div class="notif-item-body">${n.body}</div>
+      <div class="notif-item-time">${formatTime(n.time)}</div>
+    `;
+    item.addEventListener('click', () => {
+      n.read = true;
+      // Clear highlight on the project
+      if (n.projId) {
+        const proj = state.projects.find(p => p.id === n.projId);
+        if (proj) { proj.isNew = false; renderTable(); }
+      }
+      updateNotifBadge();
+      renderNotifList();
+      document.getElementById('notifPanel').classList.remove('open');
+    });
+    list.appendChild(item);
+  });
+}
+
+function formatTime(date) {
+  const now = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  return date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+function showToast(title, body, projId) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <div class="toast-title">🔔 ${title}</div>
+    <div class="toast-body">${body}</div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+  if (projId) {
+    toast.style.cursor = 'pointer';
+    toast.addEventListener('click', (e) => {
+      if (e.target.classList.contains('toast-close')) return;
+      const proj = state.projects.find(p => p.id === projId);
+      if (proj) {
+        proj.isNew = false;
+        state.selectedProject = projId;
+        const notif = state.notifications.find(n => n.projId === projId);
+        if (notif) notif.read = true;
+        updateNotifBadge();
+        renderTable(); renderCalendar(); drawLines();
+      }
+      toast.remove();
+    });
+  }
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.isConnected) {
+      toast.classList.add('removing');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, 6000);
+}
+
+// Bell toggle
+document.getElementById('notifBellWrap').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById('notifPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) renderNotifList();
+});
+document.getElementById('notifClearBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  state.notifications.forEach(n => n.read = true);
+  state.projects.forEach(p => p.isNew = false);
+  updateNotifBadge();
+  renderNotifList();
+  renderTable();
+});
+
+// ── SYNC SIMULATION ───────────────────────────────────────────────────────────
+function setSyncing() {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.className = 'sync-dot syncing';
+  label.textContent = 'Syncing…';
+  clearTimeout(setSyncing._t);
+  setSyncing._t = setTimeout(() => {
+    dot.className = 'sync-dot synced';
+    label.textContent = 'Synced';
+  }, 1200);
+}
+setSyncing._t = null;
+
+// ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────────────────
+let ctxProjId = null;
+let ctxColumnType = null;
+let ctxInputEl = null;
+
+function showCtxMenu(e, projId, columnType, inputEl) {
+  e.preventDefault();
+  e.stopPropagation();
+  ctxProjId = projId;
+  ctxColumnType = columnType;
+  ctxInputEl = inputEl;
+
+  const menu = document.getElementById('ctxMenu');
+  document.getElementById('ctxColName').textContent = columnType || 'Field';
+
+  // Show/hide relevant items
+  const isLink = inputEl && /^https?:\/\//.test(inputEl.value || inputEl.textContent);
+  document.getElementById('ctxOpenLink').style.display = isLink ? 'flex' : 'none';
+  document.getElementById('ctxEdit').style.display = inputEl ? 'flex' : 'none';
+
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 200) + 'px';
+  menu.classList.add('visible');
+}
+
+document.getElementById('ctxEdit').addEventListener('click', () => {
+  if (ctxInputEl) {
+    ctxInputEl.readOnly = false;
+    ctxInputEl.classList.add('editable');
+    ctxInputEl.style.cursor = 'text';
+    ctxInputEl.focus();
+    if (ctxInputEl.select) ctxInputEl.select();
+  }
+  document.getElementById('ctxMenu').classList.remove('visible');
+});
+
+document.getElementById('ctxOpenLink').addEventListener('click', () => {
+  const url = ctxInputEl ? (ctxInputEl.value || ctxInputEl.textContent) : '';
+  if (url && url.startsWith('http')) window.open(url, '_blank');
+  document.getElementById('ctxMenu').classList.remove('visible');
+});
+
+document.getElementById('ctxMarkDone').addEventListener('click', () => {
+  const proj = state.projects.find(p => p.id === ctxProjId);
+  if (proj) { proj.status = 'done'; setSyncing(); renderTable(); renderCalendar(); drawLines(); }
+  document.getElementById('ctxMenu').classList.remove('visible');
+});
+
+document.getElementById('ctxDuplicate').addEventListener('click', () => {
+  const proj = state.projects.find(p => p.id === ctxProjId);
+  if (proj) {
+    const dup = JSON.parse(JSON.stringify(proj));
+    dup.id = Date.now();
+    dup.name = dup.name + ' (copy)';
+    dup.isNew = false;
+    const idx = state.projects.findIndex(p => p.id === ctxProjId);
+    state.projects.splice(idx + 1, 0, dup);
+    setSyncing(); renderTable(); renderCalendar(); drawLines();
+  }
+  document.getElementById('ctxMenu').classList.remove('visible');
+});
+
+document.getElementById('ctxDelete').addEventListener('click', () => {
+  if (state.selectedProject === ctxProjId) state.selectedProject = null;
+  state.multiSelected.delete(ctxProjId);
+  state.projects = state.projects.filter(p => p.id !== ctxProjId);
+  setSyncing(); renderTable(); renderCalendar(); drawLines(); updateMultiselBar();
+  document.getElementById('ctxMenu').classList.remove('visible');
+});
+
+// ── MULTI-SELECT ──────────────────────────────────────────────────────────────
+function updateMultiselBar() {
+  const bar = document.getElementById('multiselBar');
+  const count = document.getElementById('multiselCount');
+  const show = state.multiSelected.size > 0;
+  bar.classList.toggle('show', show);
+  count.textContent = state.multiSelected.size;
+}
+document.getElementById('multiselClear').addEventListener('click', () => {
+  state.multiSelected.clear();
+  updateMultiselBar();
+  renderTable();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    state.multiSelected.clear();
+    state.selectedProject = null;
+    updateMultiselBar();
+    document.getElementById('ctxMenu').classList.remove('visible');
+    renderTable(); renderCalendar(); drawLines();
+  }
+});
+
+// ── RENDER TABLE ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const body = document.getElementById('tableBody');
+  body.innerHTML = '';
+  state.projects.forEach((p, i) => {
+    const isSelected = state.selectedProject === p.id;
+    const isMulti = state.multiSelected.has(p.id);
+    const isDimmed = (state.selectedProject !== null && !isSelected && state.multiSelected.size === 0);
+
+    const row = document.createElement('div');
+    row.className = 'project-row' +
+      (isSelected ? ' selected' : '') +
+      (isMulti ? ' multi-selected' : '') +
+      (isDimmed ? ' dimmed' : '') +
+      (p.finished ? ' finished' : '') +
+      (p.isNew ? ' new-assigned' : '');
+    row.dataset.id = p.id;
+    if (isSelected) row.style.borderLeft = `2px solid ${p.color}`;
+
+    // ── PROJECT NAME ──
+    const nameCell = document.createElement('div');
+    nameCell.className = 'proj-name-cell';
+    const colorDot = document.createElement('div');
+    colorDot.className = 'proj-color';
+    colorDot.style.background = p.color;
+    colorDot.title = 'Pick colour';
+    colorDot.addEventListener('click', (e) => { e.stopPropagation(); openColorPicker(p.id, e.clientX, e.clientY); });
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'proj-name-input';
+    nameInput.value = p.name;
+    nameInput.placeholder = 'Type project name';
+    nameInput.readOnly = true;
+    nameInput.style.cursor = 'default';
+    // Only rightclick opens edit
+    nameInput.addEventListener('contextmenu', (e) => { e.stopPropagation(); showCtxMenu(e, p.id, 'Project Name', nameInput); });
+    nameInput.addEventListener('blur', () => { nameInput.readOnly = true; nameInput.classList.remove('editable'); nameInput.style.cursor = 'default'; p.name = nameInput.value; setSyncing(); });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); e.stopPropagation(); });
+    nameInput.addEventListener('input', () => { p.name = nameInput.value; });
+    // Click = select row
+    nameInput.addEventListener('click', (e) => {
+      if (nameInput.readOnly) {
+        e.stopPropagation();
+        if (e.ctrlKey || e.metaKey) {
+          if (state.multiSelected.has(p.id)) state.multiSelected.delete(p.id);
+          else state.multiSelected.add(p.id);
+          updateMultiselBar();
+          renderTable();
+        } else {
+          state.selectedProject = state.selectedProject === p.id ? null : p.id;
+          renderTable(); renderCalendar(); drawLines();
+        }
+      } else { e.stopPropagation(); }
+    });
+    if (p.finished) nameInput.style.cssText = 'text-decoration:line-through;color:var(--text-dim)';
+    nameCell.appendChild(colorDot);
+    nameCell.appendChild(nameInput);
+
+    // ── ASSIGNED ──
+    const assignedCell = document.createElement('div');
+    assignedCell.className = 'assigned-cell';
+    p.assigned.forEach((a, ai) => {
+      const ed = EDITOR_POOL.find(e => e.initials === a);
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.style.background = ed ? ed.color : avatarColor(a, ai);
+      if (ed && ed.avatarImg) {
+        av.innerHTML = `<img src="${ed.avatarImg}" alt="${a}">`;
+      } else {
+        av.innerHTML = `<span class="avatar-label" style="color:#fff">${a}</span>`;
+      }
+      assignedCell.appendChild(av);
+    });
+    const avAdd = document.createElement('div');
+    avAdd.className = 'avatar-add';
+    avAdd.title = 'Assign editor';
+    avAdd.textContent = '+';
+    avAdd.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('deadlineCalPopup').classList.remove('visible'); openEditorPopup(p.id, e.clientX, e.clientY); });
+    assignedCell.appendChild(avAdd);
+
+    // ── STATUS ──
+    const statusCell = document.createElement('div');
+    statusCell.className = 'status-cell';
+    const statusEl = document.createElement('span');
+    statusEl.className = `status-icon ${p.status}`;
+    statusEl.title = p.status;
+    statusEl.textContent = statusIcon(p.status);
+    statusEl.style.cursor = 'pointer';
+    statusEl.addEventListener('click', (e) => { e.stopPropagation(); const cycle = {delayed:'wip',wip:'done',done:'delayed'}; p.status = cycle[p.status]||'wip'; setSyncing(); renderTable(); renderCalendar(); drawLines(); });
+    statusCell.appendChild(statusEl);
+
+    // ── DEADLINE ──
+    const deadlineCell = document.createElement('div');
+    deadlineCell.className = 'deadline-cell';
+    const deadlineInput = document.createElement('input');
+    deadlineInput.className = 'deadline-input';
+    deadlineInput.value = p.deadline || '';
+    deadlineInput.placeholder = 'Pick date';
+    deadlineInput.readOnly = true;
+    deadlineInput.style.cursor = 'pointer';
+    deadlineInput.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('editorPopup').classList.remove('visible'); openDeadlineCalPopup(p.id, deadlineInput); });
+    deadlineCell.appendChild(deadlineInput);
+
+    // ── FOOTAGE ──
+    const footageCell = document.createElement('div');
+    footageCell.className = 'footage-cell';
+    if (!p.footage) p.footage = [];
+    const footageChips = document.createElement('div');
+    footageChips.className = 'footage-chips';
+    const maxChips = 2;
+    p.footage.slice(0, maxChips).forEach((item) => {
+      const chip = document.createElement('div');
+      const isLink = typeof item === 'string' && item.startsWith('http');
+      const isImgData = typeof item === 'object' && item.type === 'image';
+      chip.className = 'footage-chip' + (isLink ? '' : isImgData ? ' img-chip' : ' text-chip');
+      if (isImgData) {
+        chip.title = 'Image attachment';
+        chip.textContent = '🖼 img';
+        chip.addEventListener('click', (e) => { e.stopPropagation(); viewImage(item.src); });
+      } else if (isLink) {
+        try { chip.textContent = new URL(item).hostname.replace('www.',''); } catch { chip.textContent = item.slice(0,20); }
+        chip.title = item;
+        chip.addEventListener('click', (e) => { e.stopPropagation(); window.open(item, '_blank'); });
+      } else {
+        chip.textContent = String(item).slice(0,16);
+        chip.title = String(item);
+      }
+      footageChips.appendChild(chip);
+    });
+    if (p.footage.length > maxChips) {
+      const more = document.createElement('div');
+      more.className = 'footage-chip text-chip';
+      more.textContent = '+' + (p.footage.length - maxChips);
+      footageChips.appendChild(more);
+    }
+    const footageAddBtn = document.createElement('div');
+    footageAddBtn.className = 'footage-add-btn';
+    footageAddBtn.title = 'Add footage / link';
+    footageAddBtn.textContent = '+';
+    footageAddBtn.addEventListener('click', (e) => { e.stopPropagation(); openFootagePopup(p.id, e.clientX, e.clientY); });
+    footageCell.appendChild(footageChips);
+    footageCell.appendChild(footageAddBtn);
+
+    // ── FRAME LINK ──
+    const frameLinkCell = document.createElement('div');
+    frameLinkCell.className = 'frame-link-cell';
+    if (p.frameLink && p.frameLink.startsWith('http')) {
+      const link = document.createElement('span');
+      link.className = 'frame-link';
+      link.textContent = p.frameLink;
+      link.title = p.frameLink;
+      link.addEventListener('click', (e) => { e.stopPropagation(); window.open(p.frameLink, '_blank'); });
+      link.addEventListener('contextmenu', (e) => { e.stopPropagation(); showCtxMenu(e, p.id, 'Frame Link', { value: p.frameLink, textContent: p.frameLink }); });
+      frameLinkCell.appendChild(link);
+    } else {
+      const frameLinkInput = document.createElement('input');
+      frameLinkInput.className = 'frame-link-input';
+      frameLinkInput.value = p.frameLink || '';
+      frameLinkInput.placeholder = 'Paste frame link';
+      frameLinkInput.style.color = p.frameLink ? 'var(--accent-blue)' : 'var(--text-dim)';
+      frameLinkInput.readOnly = true;
+      frameLinkInput.addEventListener('contextmenu', (e) => { e.stopPropagation(); showCtxMenu(e, p.id, 'Frame Link', frameLinkInput); });
+      frameLinkInput.addEventListener('blur', () => { frameLinkInput.readOnly = true; frameLinkInput.classList.remove('editable'); frameLinkInput.style.cursor = 'default'; p.frameLink = frameLinkInput.value; setSyncing(); renderTable(); });
+      frameLinkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') frameLinkInput.blur(); e.stopPropagation(); });
+      frameLinkInput.addEventListener('input', () => { p.frameLink = frameLinkInput.value; frameLinkInput.style.color = frameLinkInput.value ? 'var(--accent-blue)' : 'var(--text-dim)'; });
+      frameLinkInput.addEventListener('click', (e) => { e.stopPropagation(); if (frameLinkInput.value.startsWith('http')) window.open(frameLinkInput.value, '_blank'); });
+      frameLinkCell.appendChild(frameLinkInput);
+    }
+
+    // ── VERSION NAME ──
+    const versionCell = document.createElement('div');
+    versionCell.className = 'version-cell';
+    versionCell.style.display = 'flex'; versionCell.style.alignItems = 'center'; versionCell.style.gap = '4px';
+    const versionInput = document.createElement('input');
+    versionInput.className = 'version-input';
+    versionInput.style.flex = '1';
+    versionInput.value = p.version || '';
+    versionInput.placeholder = 'Version Name';
+    versionInput.readOnly = true;
+    versionInput.addEventListener('contextmenu', (e) => { e.stopPropagation(); showCtxMenu(e, p.id, 'Version Name', versionInput); });
+    versionInput.addEventListener('blur', () => { versionInput.readOnly = true; versionInput.classList.remove('editable'); versionInput.style.cursor = 'default'; p.version = versionInput.value; setSyncing(); });
+    versionInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') versionInput.blur(); e.stopPropagation(); });
+    versionInput.addEventListener('input', () => { p.version = versionInput.value; });
+    versionInput.addEventListener('click', e => e.stopPropagation());
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.title = 'Remove project';
+    removeBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); if (state.selectedProject === p.id) state.selectedProject = null; state.multiSelected.delete(p.id); state.projects = state.projects.filter(pr => pr.id !== p.id); setSyncing(); renderTable(); renderCalendar(); drawLines(); updateMultiselBar(); });
+    versionCell.appendChild(versionInput);
+    versionCell.appendChild(removeBtn);
+
+    // ── UPLOAD CELL ──
+    const uploadCell = document.createElement('div');
+    uploadCell.className = 'upload-cell';
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'upload-btn';
+    uploadBtn.title = 'Upload to Frame.io v4';
+    uploadBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 8V2M6 2L3.5 4.5M6 2L8.5 4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 9.5h9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+    uploadBtn.addEventListener('click', (e) => { e.stopPropagation(); const fl = p.frameLink; if (fl && fl.startsWith('http')) { window.open(fl,'_blank'); } else { const link = prompt('Enter Frame.io v4 link to upload to:'); if (link) { p.frameLink = link; setSyncing(); renderTable(); } } });
+    uploadCell.appendChild(uploadBtn);
+
+    // ── SEPARATORS & ASSEMBLY ──
+    const mkSep = () => { const s = document.createElement('div'); s.className = 'col-sep-line'; return s; };
+    row.appendChild(nameCell); row.appendChild(mkSep());
+    row.appendChild(assignedCell); row.appendChild(mkSep());
+    row.appendChild(statusCell); row.appendChild(mkSep());
+    row.appendChild(deadlineCell); row.appendChild(mkSep());
+    row.appendChild(footageCell); row.appendChild(mkSep());
+    row.appendChild(frameLinkCell); row.appendChild(mkSep());
+    row.appendChild(versionCell);
+    row.appendChild(uploadCell);
+
+    // Row click
+    row.addEventListener('click', (e) => {
+      if (['INPUT','BUTTON','A'].includes(e.target.tagName.toUpperCase())) return;
+      if (e.target.classList.contains('proj-color') || e.target.classList.contains('avatar-add') || e.target.classList.contains('status-icon')) return;
+      if (e.ctrlKey || e.metaKey) {
+        if (state.multiSelected.has(p.id)) state.multiSelected.delete(p.id);
+        else state.multiSelected.add(p.id);
+        updateMultiselBar();
+        renderTable();
+      } else {
+        state.multiSelected.clear();
+        updateMultiselBar();
+        state.selectedProject = state.selectedProject === p.id ? null : p.id;
+        renderTable(); renderCalendar(); drawLines();
+      }
+    });
+    // Row right-click (no specific column)
+    row.addEventListener('contextmenu', (e) => {
+      if (e.target === row) showCtxMenu(e, p.id, 'Row', null);
+    });
+
+    body.appendChild(row);
+  });
+  applyColWidths();
+}
+
+// ── AVATAR HELPERS ────────────────────────────────────────────────────────────
+function avatarColor(letter, idx) {
+  const colors = ['#5b6cf9','#e05555','#e07a30','#f0c330','#4dbb6a','#c45fde'];
+  const map = { D: colors[0], S: colors[1] };
+  return map[letter] || colors[idx % colors.length];
+}
+function statusIcon(s) {
+  if (s === 'delayed') return '▲';
+  if (s === 'wip') return '✦';
+  if (s === 'done') return '✓';
+  return '';
+}
+
+// ── IMAGE VIEWER ──────────────────────────────────────────────────────────────
+function viewImage(src) {
+  const viewer = document.getElementById('imgViewer');
+  document.getElementById('imgViewerImg').src = src;
+  viewer.classList.add('open');
+}
+document.getElementById('imgViewer').addEventListener('click', () => {
+  document.getElementById('imgViewer').classList.remove('open');
+});
+
+// ── ADD PROJECT ───────────────────────────────────────────────────────────────
+document.getElementById('addProjectBtn').addEventListener('click', () => {
+  const newId = Date.now();
+  const newProj = { id:newId, name:'', color:randomColor(), assigned:[], deadline:'', deadlineDay:null, deadlineMonth: state.currentMonth, deadlineYear: state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:false };
+  state.projects.push(newProj);
+  renderTable(); renderCalendar();
+  const rows = document.querySelectorAll('.project-row');
+  const lastRow = rows[rows.length-1];
+  if (lastRow) { const inp = lastRow.querySelector('.proj-name-input'); if (inp) setTimeout(() => { inp.readOnly = false; inp.classList.add('editable'); inp.style.cursor = 'text'; inp.focus(); }, 0); }
+});
+
+// Simulate assigning a project (for demo/testing via console: simulateAssignment())
+window.simulateAssignment = function(name, assigner) {
+  const newId = Date.now();
+  const proj = { id:newId, name: name||'New_Project_V1', color:randomColor(), assigned:['D'], deadline:'', deadlineDay:null, deadlineMonth:state.currentMonth, deadlineYear:state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:true };
+  state.projects.push(proj);
+  setSyncing();
+  addNotification('New Project Assigned', `"${proj.name}" was assigned to you by ${assigner||'Assigner'}.`, proj.id);
+  renderTable(); renderCalendar();
+};
+
+function randomColor() {
+  const palette = ['#e05555','#4d9fff','#e07a30','#f0c330','#4dbb6a','#c45fde','#ff6eb0','#00c9b0'];
+  return palette[Math.floor(Math.random()*palette.length)];
+}
+
+// ── RENDER CALENDAR ───────────────────────────────────────────────────────────
+function renderCalendar() {
+  const {currentYear,currentMonth} = state;
+  const title = `${MONTHS[currentMonth]} ${currentYear}`;
+  document.getElementById('calMonthTitle').textContent = title;
+  document.getElementById('monthBtnLabel').textContent = title;
+  const grid = document.getElementById('dayGrid');
+  grid.innerHTML = '';
+  const daysInMonth = new Date(currentYear,currentMonth+1,0).getDate();
+  const firstDay = new Date(currentYear,currentMonth,1).getDay();
+  for (let b=0; b<firstDay; b++) { const blank = document.createElement('div'); blank.className = 'day-cell'; grid.appendChild(blank); }
+  const dotMap = {};
+  state.projects.forEach(p => { if (p.deadlineDay && p.deadlineMonth === currentMonth && p.deadlineYear === currentYear) { if (!dotMap[p.deadlineDay]) dotMap[p.deadlineDay]=[]; dotMap[p.deadlineDay].push(p.color); } });
+  const today = new Date();
+  for (let d=1; d<=daysInMonth; d++) {
+    const cell = document.createElement('div');
+    const isToday = today.getDate()===d && today.getMonth()===currentMonth && today.getFullYear()===currentYear;
+    cell.className = 'day-cell'+(dotMap[d]?' has-project':'')+(isToday?' today':'');
+    cell.dataset.day = d;
+    const num = document.createElement('div');
+    num.className = 'day-num';
+    num.textContent = String(d).padStart(2,'0');
+    cell.appendChild(num);
+    if (dotMap[d]) {
+      const dots = document.createElement('div');
+      dots.className = 'day-dots';
+      const colors = dotMap[d];
+      const count = colors.length;
+      const dotSize = count<=3?5:count<=6?4:count<=9?3:2.5;
+      const gap = count<=6?2:1;
+      dots.style.cssText = `display:flex;flex-wrap:wrap;gap:${gap}px;justify-content:center;align-items:center;margin-top:2px;max-width:100%;`;
+      colors.forEach((color,ci) => {
+        const dot = document.createElement('div');
+        dot.style.cssText = `width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${color};flex-shrink:0;transition:opacity 0.15s;`;
+        if (state.selectedProject !== null) {
+          const relevantProjs = state.projects.filter(pp => pp.deadlineDay===d && pp.deadlineMonth===currentMonth && pp.deadlineYear===currentYear);
+          const isSel = relevantProjs[ci] && relevantProjs[ci].id === state.selectedProject;
+          dot.style.opacity = isSel ? '1' : '0.12';
+        }
+        dots.appendChild(dot);
+      });
+      cell.appendChild(dots);
+    }
+    grid.appendChild(cell);
+  }
+}
+
+// ── DRAW CONNECTION LINES (crisp, pixel-perfect) ──────────────────────────────
+function drawLines() {
+  const canvas = document.getElementById('linesCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+  if (!state.showLines || state.selectedProject === null) return;
+  const proj = state.projects.find(p => p.id === state.selectedProject);
+  if (!proj || !proj.deadlineDay) return;
+
+  const rowEl = document.querySelector(`.project-row[data-id="${proj.id}"]`);
+  const colorDot = rowEl ? rowEl.querySelector('.proj-color') : null;
+  const dayCell = document.querySelector(`.day-cell[data-day="${proj.deadlineDay}"]`);
+  if (!colorDot || !dayCell) return;
+
+  const dotRect = colorDot.getBoundingClientRect();
+  const dayRect = dayCell.getBoundingClientRect();
+
+  // Snap to half-pixel for crispness
+  const snap = v => Math.round(v * dpr) / dpr;
+  const x1 = snap(dotRect.left);
+  const y1 = snap(dotRect.top + dotRect.height / 2);
+  const x2 = snap(dayRect.right);
+  const y2 = snap(dayRect.top + dayRect.height / 2);
+  const midX = snap((x1 + x2) / 2);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = proj.color;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.globalAlpha = 0.85;
+  ctx.lineJoin = 'miter';
+  ctx.lineCap = 'butt';
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(midX, y1);
+  ctx.lineTo(midX, y2);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // Dot endpoints for crisp termination
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.fillStyle = proj.color;
+  ctx.arc(x1, y1, 2.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x2, y2, 2.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── LINES TOGGLE ──────────────────────────────────────────────────────────────
+document.getElementById('linesToggle').addEventListener('click', () => {
+  state.showLines = !state.showLines;
+  document.getElementById('linesToggle').classList.toggle('active', state.showLines);
+  drawLines();
+});
+
+// ── MONTH NAVIGATION ──────────────────────────────────────────────────────────
+document.getElementById('prevMonth').addEventListener('click', () => { if (state.currentMonth===0){state.currentMonth=11;state.currentYear--;}else state.currentMonth--; renderCalendar(); drawLines(); });
+document.getElementById('nextMonth').addEventListener('click', () => { if (state.currentMonth===11){state.currentMonth=0;state.currentYear++;}else state.currentMonth++; renderCalendar(); drawLines(); });
+document.getElementById('monthBtn').addEventListener('click', (e) => {
+  const popup = document.getElementById('calMonthPopup');
+  state.popupYear = state.currentYear;
+  renderMonthPopup();
+  const rect = e.currentTarget.getBoundingClientRect();
+  popup.style.top = (rect.bottom+4)+'px';
+  popup.style.left = rect.left+'px';
+  popup.classList.toggle('visible');
+  e.stopPropagation();
+});
+function renderMonthPopup() {
+  document.getElementById('popupYear').textContent = state.popupYear;
+  const list = document.getElementById('monthList');
+  list.innerHTML = '';
+  MONTHS_SHORT.forEach((m,i) => {
+    const item = document.createElement('div');
+    item.className = 'cal-month-item'+(i===state.currentMonth&&state.popupYear===state.currentYear?' current':'');
+    item.textContent = m;
+    item.addEventListener('click', () => { state.currentMonth=i; state.currentYear=state.popupYear; document.getElementById('calMonthPopup').classList.remove('visible'); renderCalendar(); drawLines(); });
+    list.appendChild(item);
+  });
+}
+document.getElementById('prevYear').addEventListener('click', (e) => { e.stopPropagation(); state.popupYear--; renderMonthPopup(); });
+document.getElementById('nextYear').addEventListener('click', (e) => { e.stopPropagation(); state.popupYear++; renderMonthPopup(); });
+
+// ── OPACITY CONTROLS ──────────────────────────────────────────────────────────
+['imgOpacityBtn','calOpacityBtn'].forEach(btnId => {
+  const btn = document.getElementById(btnId);
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const other = btnId==='imgOpacityBtn'?'calOpacityBtn':'imgOpacityBtn';
+    document.getElementById(other).classList.remove('open');
+    const willOpen = !btn.classList.contains('open');
+    btn.classList.toggle('open');
+    if (willOpen) {
+      const popup = btn.querySelector('.opacity-popup');
+      const rect = btn.getBoundingClientRect();
+      popup.style.left = (rect.left+rect.width/2-18)+'px';
+      popup.style.top = (rect.top-popup.offsetHeight-8)+'px';
+      requestAnimationFrame(() => { const h=popup.offsetHeight; popup.style.top=(rect.top-h-8)+'px'; });
+    }
+  });
+});
+document.getElementById('imgOpacity').addEventListener('input', function() { document.getElementById('imgOpacityVal').textContent=this.value+'%'; document.documentElement.style.setProperty('--img-opacity',this.value/100); });
+document.getElementById('calOpacity').addEventListener('input', function() { document.getElementById('calOpacityVal').textContent=this.value+'%'; const bg=document.getElementById('calBgLayer'); if(bg) bg.style.opacity=this.value/100; });
+
+// ── COLUMN DRAG RESIZE ────────────────────────────────────────────────────────
+const colWidths = [160,90,50,80,110,130,160,44];
+function applyColWidths() {
+  const tpl = `${colWidths[0]}px 1px ${colWidths[1]}px 1px ${colWidths[2]}px 1px ${colWidths[3]}px 1px ${colWidths[4]}px 1px ${colWidths[5]}px 1px ${colWidths[6]}px ${colWidths[7]}px`;
+  document.querySelectorAll('.table-head,.project-row').forEach(el => { el.style.gridTemplateColumns = tpl; });
+}
+(function initColResize() {
+  function attachResizeHandles() {
+    const head = document.querySelector('.table-head');
+    if (!head) return;
+    const seps = Array.from(head.querySelectorAll('.col-sep'));
+    const sepColMap = [0,1,2,3,4,5];
+    seps.forEach((sep,i) => {
+      sep.style.cursor = 'col-resize'; sep.style.userSelect = 'none';
+      let startX, startW;
+      sep.addEventListener('mousedown', (e) => {
+        e.preventDefault(); startX=e.clientX; startW=colWidths[sepColMap[i]];
+        const onMove = (ev) => { colWidths[sepColMap[i]]=Math.max(30,startW+(ev.clientX-startX)); applyColWidths(); };
+        const onUp = () => { document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); };
+        document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+      });
+    });
+  }
+  applyColWidths();
+  setTimeout(() => { applyColWidths(); attachResizeHandles(); },100);
+  const tableBody = document.getElementById('tableBody');
+  if (tableBody) { const obs = new MutationObserver(() => { applyColWidths(); attachResizeHandles(); }); obs.observe(tableBody, {childList:true}); }
+  const tableHead = document.querySelector('.table-head');
+  if (tableHead) { const obs2 = new MutationObserver(() => attachResizeHandles()); obs2.observe(tableHead, {childList:true,subtree:true}); }
+})();
+
+// ── IMAGE UPLOAD ──────────────────────────────────────────────────────────────
+document.getElementById('imgUpload').addEventListener('change', function() {
+  const file = this.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const area = document.getElementById('calImgArea');
+    area.innerHTML = `
+      <img src="${e.target.result}" alt="bg" style="width:100%;height:100%;object-fit:cover;opacity:var(--img-opacity);transition:opacity 0.2s;">
+      <label class="img-drop-zone" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:2;" title="Change image">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="0.9"/><path d="M5.5 3.5v4M3.5 5.5h4" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/></svg>
+        Change
+        <input type="file" accept="image/*,.gif" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="(function(f){if(!f)return;const r=new FileReader();r.onload=(ev)=>{document.getElementById('calImgArea').querySelector('img').src=ev.target.result;};r.readAsDataURL(f);})(this.files[0])">
+      </label>
+    `;
+  };
+  reader.readAsDataURL(file);
+});
+
+// ── COLOR PICKER ──────────────────────────────────────────────────────────────
+let colorPickerProjId = null;
+function openColorPicker(projId, x, y) {
+  colorPickerProjId = projId;
+  const proj = state.projects.find(p => p.id === projId);
+  const popup = document.getElementById('colorPopup');
+  popup.style.left = Math.min(x,window.innerWidth-220)+'px';
+  popup.style.top = Math.min(y+10,window.innerHeight-280)+'px';
+  popup.classList.add('visible');
+  setColorFromHex(proj.color);
+  drawColorWheel();
+}
+function setColorFromHex(hex) {
+  document.getElementById('hexInput').value = hex;
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  document.getElementById('rInput').value = r; document.getElementById('gInput').value = g; document.getElementById('bInput').value = b;
+  document.getElementById('colorSwatch').style.background = hex;
+}
+function applyColor(hex) {
+  if (!colorPickerProjId) return;
+  const proj = state.projects.find(p => p.id === colorPickerProjId);
+  if (proj) proj.color = hex;
+  renderTable(); renderCalendar(); drawLines();
+}
+document.getElementById('hexInput').addEventListener('input', function() { let v=this.value.startsWith('#')?this.value:'#'+this.value; if(/^#[0-9a-fA-F]{6}$/.test(v)){setColorFromHex(v);applyColor(v);} });
+['rInput','gInput','bInput'].forEach(id => { document.getElementById(id).addEventListener('input', () => { const r=parseInt(document.getElementById('rInput').value)||0, g=parseInt(document.getElementById('gInput').value)||0, b=parseInt(document.getElementById('bInput').value)||0; const hex='#'+[r,g,b].map(v=>Math.min(255,v).toString(16).padStart(2,'0')).join(''); document.getElementById('hexInput').value=hex; document.getElementById('colorSwatch').style.background=hex; applyColor(hex); }); });
+function drawColorWheel() {
+  const canvas=document.getElementById('colorWheel'), ctx=canvas.getContext('2d'), cx=70, cy=70, r=68;
+  for (let angle=0;angle<360;angle++) { const start=(angle-1)*Math.PI/180, end=(angle+1)*Math.PI/180, grad=ctx.createRadialGradient(cx,cy,0,cx,cy,r); grad.addColorStop(0,'#fff'); grad.addColorStop(1,`hsl(${angle},100%,50%)`); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end); ctx.fillStyle=grad; ctx.fill(); }
+}
+document.getElementById('colorWheel').addEventListener('click', function(e) { const rect=this.getBoundingClientRect(), x=e.clientX-rect.left, y=e.clientY-rect.top, ctx=this.getContext('2d'), px=ctx.getImageData(x,y,1,1).data, hex='#'+[px[0],px[1],px[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); setColorFromHex(hex); applyColor(hex); });
+
+// ── FOOTAGE POPUP ─────────────────────────────────────────────────────────────
+let footagePopupProjId = null;
+function openFootagePopup(projId, x, y) {
+  footagePopupProjId = projId;
+  const popup = document.getElementById('footagePopup');
+  renderFootageList();
+  document.getElementById('footageInput').value = '';
+  const pw = 280, ph = 280;
+  popup.style.left = Math.min(x, window.innerWidth-pw-10)+'px';
+  popup.style.top = Math.min(y+8, window.innerHeight-ph-10)+'px';
+  popup.classList.add('visible');
+}
+function renderFootageList() {
+  const proj = state.projects.find(p => p.id === footagePopupProjId);
+  if (!proj) return;
+  if (!proj.footage) proj.footage = [];
+  const list = document.getElementById('footageList');
+  list.innerHTML = '';
+  if (proj.footage.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:9px;color:var(--text-dim);padding:4px 2px;font-family:var(--sans);';
+    empty.textContent = 'No items yet. Add links, text, or paste images.';
+    list.appendChild(empty);
+    return;
+  }
+  proj.footage.forEach((item, idx) => {
+    const isLink = typeof item === 'string' && /^https?:\/\//.test(item);
+    const isImg = typeof item === 'object' && item.type === 'image';
+    const row = document.createElement('div');
+    row.className = 'footage-popup-item';
+    if (isImg) {
+      const thumb = document.createElement('img');
+      thumb.className = 'footage-popup-item-thumb';
+      thumb.src = item.src;
+      thumb.style.cursor = 'zoom-in';
+      thumb.addEventListener('click', () => viewImage(item.src));
+      row.appendChild(thumb);
+    }
+    const label = document.createElement('div');
+    label.className = 'footage-popup-item-text' + (isImg ? ' is-img' : isLink ? '' : ' is-text');
+    label.title = isImg ? 'Image' : String(item);
+    label.textContent = isImg ? '🖼 ' + (item.name || 'Image') : String(item);
+    if (isLink) { label.style.cursor = 'pointer'; label.addEventListener('click', () => window.open(String(item), '_blank')); }
+    else if (isImg) { label.style.cursor = 'zoom-in'; label.addEventListener('click', () => viewImage(item.src)); }
+    const del = document.createElement('button');
+    del.className = 'footage-popup-item-del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.addEventListener('click', (e) => { e.stopPropagation(); proj.footage.splice(idx,1); renderFootageList(); renderTable(); setSyncing(); });
+    row.appendChild(label); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+function addFootageItem() {
+  const proj = state.projects.find(p => p.id === footagePopupProjId);
+  const inp = document.getElementById('footageInput');
+  const val = inp.value.trim();
+  if (!val || !proj) return;
+  if (!proj.footage) proj.footage = [];
+  proj.footage.push(val);
+  inp.value = '';
+  renderFootageList(); renderTable(); setSyncing();
+}
+document.getElementById('footageAddBtn').addEventListener('click', (e) => { e.stopPropagation(); addFootageItem(); });
+document.getElementById('footageInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addFootageItem(); e.stopPropagation(); });
+document.getElementById('footageInput').addEventListener('click', e => e.stopPropagation());
+
+// Paste image in footage popup (Ctrl+V)
+document.addEventListener('paste', (e) => {
+  const popup = document.getElementById('footagePopup');
+  if (!popup.classList.contains('visible')) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      const file = items[i].getAsFile();
+      if (!file) continue;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const proj = state.projects.find(p => p.id === footagePopupProjId);
+        if (!proj) return;
+        if (!proj.footage) proj.footage = [];
+        proj.footage.push({ type: 'image', src: ev.target.result, name: file.name });
+        renderFootageList(); renderTable(); setSyncing();
+      };
+      reader.readAsDataURL(file);
+      e.preventDefault();
+      break;
+    }
+  }
+});
+
+// File input for footage image
+document.getElementById('footageImgInput').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const proj = state.projects.find(p => p.id === footagePopupProjId);
+    if (!proj) return;
+    if (!proj.footage) proj.footage = [];
+    proj.footage.push({ type: 'image', src: ev.target.result, name: file.name });
+    renderFootageList(); renderTable(); setSyncing();
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+
+// Drag-over visual feedback on paste zone
+const pasteZone = document.getElementById('footagePasteZone');
+pasteZone.addEventListener('dragover', (e) => { e.preventDefault(); pasteZone.classList.add('drag-over'); });
+pasteZone.addEventListener('dragleave', () => pasteZone.classList.remove('drag-over'));
+pasteZone.addEventListener('drop', (e) => {
+  e.preventDefault(); pasteZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const proj = state.projects.find(p => p.id === footagePopupProjId);
+    if (!proj) return;
+    if (!proj.footage) proj.footage = [];
+    proj.footage.push({ type:'image', src:ev.target.result, name:file.name });
+    renderFootageList(); renderTable(); setSyncing();
+  };
+  reader.readAsDataURL(file);
+});
+
+// ── EDITOR POPUP ──────────────────────────────────────────────────────────────
+let editorPopupProjId = null;
+let avatarChangeEditorIdx = null;
+function openEditorPopup(projId, x, y) {
+  editorPopupProjId = projId;
+  const popup = document.getElementById('editorPopup');
+  renderEditorList();
+  popup.style.left = Math.min(x, window.innerWidth-200)+'px';
+  popup.style.top = Math.min(y+8, window.innerHeight-280)+'px';
+  popup.classList.add('visible');
+  document.getElementById('editorNewInput').value = '';
+}
+function renderEditorList() {
+  const proj = state.projects.find(p => p.id === editorPopupProjId);
+  if (!proj) return;
+  const list = document.getElementById('editorList');
+  list.innerHTML = '';
+  EDITOR_POOL.forEach((ed, edIdx) => {
+    const item = document.createElement('div');
+    const isAssigned = proj.assigned.includes(ed.initials);
+    item.className = 'editor-item'+(isAssigned?' assigned':'');
+    const avEl = document.createElement('div');
+    avEl.className = 'editor-item-av';
+    avEl.style.background = ed.color;
+    avEl.title = 'Click avatar to change photo';
+    if (ed.avatarImg) {
+      avEl.innerHTML = `<img src="${ed.avatarImg}" alt="${ed.initials}"><span class="editor-item-av-label" style="opacity:0">${ed.initials}</span>`;
+    } else {
+      avEl.innerHTML = `<span class="editor-item-av-label">${ed.initials}</span>`;
+    }
+    avEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      avatarChangeEditorIdx = edIdx;
+      document.getElementById('avatarFileInput').click();
+    });
+    const nameEl = document.createElement('div');
+    nameEl.className = 'editor-item-name';
+    nameEl.textContent = ed.initials;
+    const leftDiv = document.createElement('div');
+    leftDiv.className = 'editor-item-left';
+    leftDiv.appendChild(avEl); leftDiv.appendChild(nameEl);
+    const checkEl = document.createElement('span');
+    checkEl.className = 'editor-item-check';
+    checkEl.textContent = '✓';
+    item.appendChild(leftDiv); item.appendChild(checkEl);
+    item.addEventListener('click', () => {
+      if (isAssigned) proj.assigned = proj.assigned.filter(a => a !== ed.initials);
+      else proj.assigned.push(ed.initials);
+      renderEditorList(); renderTable(); drawLines();
+    });
+    list.appendChild(item);
+  });
+}
+// Avatar image change
+document.getElementById('avatarFileInput').addEventListener('change', function() {
+  const file = this.files[0]; if (!file || avatarChangeEditorIdx === null) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    EDITOR_POOL[avatarChangeEditorIdx].avatarImg = ev.target.result;
+    renderEditorList(); renderTable();
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+document.getElementById('editorAddConfirm').addEventListener('click', () => {
+  const val = document.getElementById('editorNewInput').value.trim().toUpperCase();
+  if (!val) return;
+  if (!EDITOR_POOL.find(e => e.initials === val)) {
+    const colors = ['#4dbb6a','#c45fde','#ff6eb0','#00c9b0','#f0c330','#e07a30'];
+    EDITOR_POOL.push({ initials:val, color:colors[EDITOR_POOL.length%colors.length], avatarImg:null });
+  }
+  const proj = state.projects.find(p => p.id === editorPopupProjId);
+  if (proj && !proj.assigned.includes(val)) proj.assigned.push(val);
+  document.getElementById('editorNewInput').value = '';
+  renderEditorList(); renderTable(); drawLines();
+});
+document.getElementById('editorNewInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('editorAddConfirm').click(); e.stopPropagation(); });
+
+// ── DEADLINE CALENDAR PICKER ──────────────────────────────────────────────────
+let dlPopupProjId = null, dlPickerMonth = 2, dlPickerYear = 2026;
+function openDeadlineCalPopup(projId, anchorEl) {
+  dlPopupProjId = projId;
+  dlPickerMonth = state.currentMonth; dlPickerYear = state.currentYear;
+  renderDLCal();
+  const popup = document.getElementById('deadlineCalPopup');
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.left = Math.min(rect.left, window.innerWidth-200)+'px';
+  popup.style.top = Math.min(rect.bottom+4, window.innerHeight-220)+'px';
+  popup.classList.add('visible');
+}
+function renderDLCal() {
+  document.getElementById('dlCalTitle').textContent = MONTHS_SHORT[dlPickerMonth]+' '+dlPickerYear;
+  const grid = document.getElementById('dlCalGrid');
+  grid.innerHTML = '';
+  const proj = state.projects.find(p => p.id === dlPopupProjId);
+  const daysInMonth = new Date(dlPickerYear,dlPickerMonth+1,0).getDate();
+  const firstDay = new Date(dlPickerYear,dlPickerMonth,1).getDay();
+  const today = new Date();
+  for (let b=0;b<firstDay;b++){const blank=document.createElement('div');blank.className='dlcal-cell blank';grid.appendChild(blank);}
+  for (let d=1;d<=daysInMonth;d++){
+    const cell=document.createElement('div');
+    const isToday=today.getDate()===d&&today.getMonth()===dlPickerMonth&&today.getFullYear()===dlPickerYear;
+    const isSel=proj&&proj.deadlineDay===d&&proj.deadlineMonth===dlPickerMonth&&proj.deadlineYear===dlPickerYear;
+    cell.className='dlcal-cell'+(isSel?' selected':'')+(isToday&&!isSel?' today-mark':'');
+    cell.textContent=d;
+    cell.addEventListener('click',()=>{
+      if(!proj)return;
+      proj.deadline=d+' '+MONTHS_SHORT[dlPickerMonth];
+      proj.deadlineDay=d; proj.deadlineMonth=dlPickerMonth; proj.deadlineYear=dlPickerYear;
+      document.getElementById('deadlineCalPopup').classList.remove('visible');
+      setSyncing(); renderTable(); renderCalendar(); drawLines();
+    });
+    grid.appendChild(cell);
+  }
+}
+document.getElementById('dlPrevMonth').addEventListener('click',(e)=>{e.stopPropagation();if(dlPickerMonth===0){dlPickerMonth=11;dlPickerYear--;}else dlPickerMonth--;renderDLCal();});
+document.getElementById('dlNextMonth').addEventListener('click',(e)=>{e.stopPropagation();if(dlPickerMonth===11){dlPickerMonth=0;dlPickerYear++;}else dlPickerMonth++;renderDLCal();});
+
+// ── CLOSE POPUPS ON OUTSIDE CLICK ────────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const cp=document.getElementById('colorPopup'), mp=document.getElementById('calMonthPopup');
+  if (!cp.contains(e.target)&&!e.target.classList.contains('proj-color')) cp.classList.remove('visible');
+  if (!mp.contains(e.target)&&e.target.id!=='monthBtn'&&!e.target.closest('#monthBtn')) mp.classList.remove('visible');
+  const ep=document.getElementById('editorPopup');
+  if (!ep.contains(e.target)&&!e.target.classList.contains('avatar-add')) ep.classList.remove('visible');
+  const dp=document.getElementById('deadlineCalPopup');
+  if (!dp.contains(e.target)&&!e.target.classList.contains('deadline-input')) dp.classList.remove('visible');
+  const fp=document.getElementById('footagePopup');
+  if (!fp.contains(e.target)&&!e.target.classList.contains('footage-add-btn')) fp.classList.remove('visible');
+  if (!e.target.closest('#imgOpacityBtn')) document.getElementById('imgOpacityBtn').classList.remove('open');
+  if (!e.target.closest('#calOpacityBtn')) document.getElementById('calOpacityBtn').classList.remove('open');
+  if (!e.target.closest('#notifBellWrap')&&!document.getElementById('notifPanel').contains(e.target)) document.getElementById('notifPanel').classList.remove('open');
+  const ctxMenu=document.getElementById('ctxMenu');
+  if (!ctxMenu.contains(e.target)) ctxMenu.classList.remove('visible');
+});
+// Suppress default context menu on the whole app
+document.addEventListener('contextmenu', (e) => {
+  // Only suppress if not inside an input that needs it for real
+  if (!['INPUT','TEXTAREA'].includes(e.target.tagName)) e.preventDefault();
+});
+
+// ── RESIZE ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', drawLines);
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────────
+function tooltip(el, text) {
+  el.addEventListener('mouseenter', (e) => { const t=document.getElementById('tooltip'); t.textContent=text; t.classList.add('show'); t.style.left=(e.clientX+10)+'px'; t.style.top=(e.clientY-24)+'px'; });
+  el.addEventListener('mouseleave', () => { document.getElementById('tooltip').classList.remove('show'); });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderTable();
+renderCalendar();
+drawColorWheel();
+updateNotifBadge();
+
+// ── CEP BRIDGE (Adobe Premiere Pro) ──────────────────────────────────────────
+// If running inside Premiere Pro CEP panel, expose a bridge
+if (typeof window.__adobe_cep__ !== 'undefined' || window.location.protocol === 'file:') {
+  try {
+    const csInterface = new CSInterface();
+    // Listen for events from ExtendScript
+    csInterface.addEventListener('com.dtracker.newproject', (event) => {
+      const data = JSON.parse(event.data);
+      window.simulateAssignment(data.name, data.assigner);
+    });
+    // Export project list to ExtendScript
+    window.getDTrackerProjects = () => JSON.stringify(state.projects);
+  } catch(e) {
+    // CSInterface not available (running in browser), no-op
+  }
+}
+</script>
+</body>
+</html>
