@@ -670,21 +670,20 @@ let state = {
   showLines: true,
   selectedProject: null,
   multiSelected: new Set(),
-  colorPickerTarget: null,
   popupYear: 2026,
   isEditorMode: false,
   notifications: [],
-  projects: [          // ←←← THIS IS THE ONE
-    { id:1, name:'SD_Women_Leader_V1', ... },
-    { id:2, name:'SD_Women_Leader_V1', ... },
-    { id:3, ... },
-    ...
-  ]
+  projects: []                    // Start empty
 };
-  // Load saved projects from browser storage (so they don't disappear on refresh)
-const savedProjects = localStorage.getItem('dtracker_projects');
-if (savedProjects) {
-  state.projects = JSON.parse(savedProjects);
+
+// Load previously saved projects from browser (persists after refresh)
+const saved = localStorage.getItem('dtracker_projects');
+if (saved) {
+  try {
+    state.projects = JSON.parse(saved);
+  } catch(e) {
+    state.projects = [];
+  }
 }
 
 // Editor pool — each editor can have a custom avatar image (dataURL)
@@ -1189,31 +1188,44 @@ document.getElementById('imgViewer').addEventListener('click', () => {
   document.getElementById('imgViewer').classList.remove('open');
 });
 
-// ── ADD PROJECT ───────────────────────────────────────────────────────────────
+// ── ADD NEW PROJECT ───────────────────────────────────────────────────────────
 document.getElementById('addProjectBtn').addEventListener('click', () => {
   const newId = Date.now();
-  const newProj = { id:newId, name:'', color:randomColor(), assigned:[], deadline:'', deadlineDay:null, deadlineMonth: state.currentMonth, deadlineYear: state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:false };
-  state.projects.push(newProj);
-  renderTable(); renderCalendar();
-  const rows = document.querySelectorAll('.project-row');
-  const lastRow = rows[rows.length-1];
-  if (lastRow) { const inp = lastRow.querySelector('.proj-name-input'); if (inp) setTimeout(() => { inp.readOnly = false; inp.classList.add('editable'); inp.style.cursor = 'text'; inp.focus(); }, 0); }
+  const newProj = {
+    id: newId,
+    name: 'New Project',
+    color: randomColor(),
+    assigned: [],
+    deadline: '',
+    deadlineDay: null,
+    deadlineMonth: state.currentMonth,
+    deadlineYear: state.currentYear,
+    status: 'wip',
+    frameLink: '',
+    version: '',
+    footage: [],
+    finished: false,
+    isNew: true
+  };
+
+  state.projects.unshift(newProj);   // Add at the top
+  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
+
+  renderTable();
+  renderCalendar();
+  drawLines();
+
+  // Auto edit the name of the new project
+  setTimeout(() => {
+    const nameInput = document.querySelector('.proj-name-input');
+    if (nameInput) {
+      nameInput.readOnly = false;
+      nameInput.classList.add('editable');
+      nameInput.focus();
+      nameInput.select();
+    }
+  }, 100);
 });
-
-// Simulate assigning a project (for demo/testing via console: simulateAssignment())
-window.simulateAssignment = function(name, assigner) {
-  const newId = Date.now();
-  const proj = { id:newId, name: name||'New_Project_V1', color:randomColor(), assigned:['D'], deadline:'', deadlineDay:null, deadlineMonth:state.currentMonth, deadlineYear:state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:true };
-  state.projects.push(proj);
-  setSyncing();
-  addNotification('New Project Assigned', `"${proj.name}" was assigned to you by ${assigner||'Assigner'}.`, proj.id);
-  renderTable(); renderCalendar();
-};
-
-function randomColor() {
-  const palette = ['#e05555','#4d9fff','#e07a30','#f0c330','#4dbb6a','#c45fde','#ff6eb0','#00c9b0'];
-  return palette[Math.floor(Math.random()*palette.length)];
-}
 
 // ── RENDER CALENDAR ───────────────────────────────────────────────────────────
 function renderCalendar() {
