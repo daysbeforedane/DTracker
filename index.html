@@ -1701,11 +1701,251 @@ function tooltip(el, text) {
   el.addEventListener('mouseleave', () => { document.getElementById('tooltip').classList.remove('show'); });
 }
 
+// ── GIST SYNC ENGINE ──────────────────────────────────────────────────────────
+const GIST_FILENAME = 'dtracker_projects.json';
+const LS_KEY_PROJECTS = 'dtracker_projects_v1';
+const LS_KEY_SETTINGS = 'dtracker_settings_v1';
+
+let gistSettings = { token: '', gistId: '' };
+let syncInFlight = false;
+let pendingSave = false;
+let lastSavedHash = '';
+
+function loadSettings() {
+  try { const s = localStorage.getItem(LS_KEY_SETTINGS); if (s) gistSettings = Object.assign({ token:'', gistId:'' }, JSON.parse(s)); } catch(e) {}
+}
+function saveSettings() {
+  localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(gistSettings));
+}
+
+function hashProjects(projects) {
+  return JSON.stringify(projects.map(p => ({
+    id:p.id, name:p.name, color:p.color, assigned:p.assigned,
+    deadline:p.deadline, deadlineDay:p.deadlineDay, deadlineMonth:p.deadlineMonth,
+    deadlineYear:p.deadlineYear, status:p.status, frameLink:p.frameLink,
+    version:p.version, finished:p.finished
+  })));
+}
+
+function persistLocal() {
+  try { localStorage.setItem(LS_KEY_PROJECTS, JSON.stringify(state.projects)); } catch(e) {}
+}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY_PROJECTS);
+    if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) { state.projects = p; return true; } }
+  } catch(e) {}
+  return false;
+}
+
+function setSyncDot(status) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  dot.style.background = '';
+  if (status === 'syncing') { dot.className = 'sync-dot syncing'; lbl.textContent = 'Syncing\u2026'; }
+  else if (status === 'synced') { dot.className = 'sync-dot synced'; lbl.textContent = 'Synced'; }
+  else if (status === 'error') { dot.className = 'sync-dot'; dot.style.background = 'var(--accent-red)'; lbl.textContent = 'Sync error'; }
+  else { dot.className = 'sync-dot'; lbl.textContent = 'Not configured'; }
+}
+
+async function pushToGist() {
+  if (!gistSettings.token || !gistSettings.gistId) return;
+  if (syncInFlight) { pendingSave = true; return; }
+  const hash = hashProjects(state.projects);
+  if (hash === lastSavedHash) return;
+  syncInFlight = true;
+  setSyncDot('syncing');
+  try {
+    const payload = JSON.stringify({ projects: state.projects, updatedAt: Date.now() }, null, 2);
+    const res = await fetch(`https://api.github.com/gists/${gistSettings.gistId}`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `token ${gistSettings.token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json' },
+      body: JSON.stringify({ files: { [GIST_FILENAME]: { content: payload } } })
+    });
+    if (res.ok) { lastSavedHash = hash; setSyncDot('synced'); persistLocal(); }
+    else setSyncDot('error');
+  } catch(e) { setSyncDot('error'); }
+  syncInFlight = false;
+  if (pendingSave) { pendingSave = false; setTimeout(pushToGist, 400); }
+}
+
+async function pullFromGist() {
+  if (!gistSettings.token || !gistSettings.gistId) return;
+  setSyncDot('syncing');
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistSettings.gistId}`, {
+      headers: { 'Authorization': `token ${gistSettings.token}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }
+    });
+    if (!res.ok) { setSyncDot('error'); return; }
+    const gist = await res.json();
+    const file = gist.files && gist.files[GIST_FILENAME];
+    if (!file || !file.content) { setSyncDot('synced'); return; }
+    const data = JSON.parse(file.content);
+    if (!data.projects || !Array.isArray(data.projects)) { setSyncDot('synced'); return; }
+
+    const knownIds = new Set(state.projects.map(p => p.id));
+    const newOnes = data.projects.filter(p => !knownIds.has(p.id));
+    newOnes.forEach(p => {
+      p.isNew = true;
+      addNotification('New Project Assigned', `"${p.name || 'Unnamed'}" was added to the tracker.`, p.id);
+    });
+
+    data.projects.forEach(remote => {
+      const local = state.projects.find(lp => lp.id === remote.id);
+      if (local) {
+        // Remote wins on everything except footage (images stay local)
+        Object.assign(local, {
+          name: remote.name ?? local.name, color: remote.color ?? local.color,
+          assigned: remote.assigned ?? local.assigned, deadline: remote.deadline ?? local.deadline,
+          deadlineDay: remote.deadlineDay ?? local.deadlineDay, deadlineMonth: remote.deadlineMonth ?? local.deadlineMonth,
+          deadlineYear: remote.deadlineYear ?? local.deadlineYear, status: remote.status ?? local.status,
+          frameLink: remote.frameLink ?? local.frameLink, version: remote.version ?? local.version,
+          finished: remote.finished ?? local.finished
+        });
+      }
+    });
+    newOnes.forEach(p => state.projects.push(p));
+
+    lastSavedHash = hashProjects(state.projects);
+    persistLocal();
+    setSyncDot('synced');
+    renderTable(); renderCalendar(); drawLines();
+  } catch(e) { setSyncDot('error'); }
+}
+
+async function createGist() {
+  if (!gistSettings.token) return null;
+  setSyncDot('syncing');
+  try {
+    const payload = JSON.stringify({ projects: state.projects, updatedAt: Date.now() }, null, 2);
+    const res = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: { 'Authorization': `token ${gistSettings.token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json' },
+      body: JSON.stringify({ description: 'DTracker shared project list', public: false, files: { [GIST_FILENAME]: { content: payload } } })
+    });
+    if (!res.ok) { setSyncDot('error'); return null; }
+    const gist = await res.json();
+    gistSettings.gistId = gist.id;
+    saveSettings();
+    lastSavedHash = hashProjects(state.projects);
+    setSyncDot('synced');
+    return gist.id;
+  } catch(e) { setSyncDot('error'); return null; }
+}
+
+// Hook setSyncing so every local change auto-pushes
+const _origSetSyncing = setSyncing;
+setSyncing = function() { _origSetSyncing(); persistLocal(); pushToGist(); };
+
+// Poll every 8 seconds
+setInterval(pullFromGist, 8000);
+
+// ── SETTINGS PANEL ────────────────────────────────────────────────────────────
+(function buildSettingsUI() {
+  const roleBar = document.querySelector('.role-bar');
+  const gearBtn = document.createElement('div');
+  gearBtn.id = 'gearBtn';
+  gearBtn.style.cssText = 'cursor:pointer;width:24px;height:24px;border-radius:4px;background:var(--row);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.15s;flex-shrink:0;';
+  gearBtn.title = 'Sync settings';
+  gearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="1.8" stroke="currentColor" stroke-width="1"/><path d="M6 1v1.2M6 9.8V11M1 6h1.2M9.8 6H11M2.5 2.5l.85.85M8.65 8.65l.85.85M9.5 2.5l-.85.85M3.35 8.65l-.85.85" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`;
+
+  const panel = document.createElement('div');
+  panel.id = 'settingsPanel';
+  panel.style.cssText = 'position:fixed;right:8px;top:50px;width:320px;background:#1a1a1a;border:1px solid var(--border-light);border-radius:8px;z-index:1001;display:none;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.8);';
+  panel.innerHTML = `
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;">
+      Sync Settings
+      <span id="settingsClose" style="cursor:pointer;color:var(--text-dim);font-size:16px;line-height:1;">&#215;</span>
+    </div>
+    <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <div style="font-family:var(--sans);font-size:9px;color:var(--text-dim);margin-bottom:5px;">GITHUB TOKEN <span style="color:var(--accent-green)">(gist scope)</span></div>
+        <input id="settingsTokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;background:var(--row);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:4px;outline:none;box-sizing:border-box;letter-spacing:0.05em;">
+        <div style="font-family:var(--sans);font-size:8px;color:var(--text-dim);margin-top:4px;line-height:1.5;">github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Tokens (classic) &#8594; check <b style="color:var(--text-mid)">gist</b></div>
+      </div>
+      <div>
+        <div style="font-family:var(--sans);font-size:9px;color:var(--text-dim);margin-bottom:5px;">GIST ID <span style="color:var(--text-dim);font-weight:400;">(auto-filled on first save)</span></div>
+        <input id="settingsGistInput" placeholder="Leave blank to create a new Gist" style="width:100%;background:var(--row);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:4px;outline:none;box-sizing:border-box;">
+        <div style="font-family:var(--sans);font-size:8px;color:var(--text-dim);margin-top:4px;line-height:1.5;">Share this Gist ID with all editors so everyone reads the same data.</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button id="saveSettingsBtn" style="flex:1;background:rgba(0,232,122,0.1);border:1px solid var(--accent-green);color:var(--accent-green);font-family:var(--mono);font-size:9px;padding:7px;border-radius:4px;cursor:pointer;letter-spacing:0.05em;">SAVE &amp; CONNECT</button>
+        <button id="syncNowBtn" style="background:var(--row);border:1px solid var(--border-light);color:var(--text-mid);font-family:var(--mono);font-size:9px;padding:7px 10px;border-radius:4px;cursor:pointer;letter-spacing:0.05em;">PULL NOW</button>
+      </div>
+      <div id="settingsStatus" style="font-family:var(--mono);font-size:9px;color:var(--text-dim);min-height:14px;line-height:1.5;"></div>
+    </div>
+  `;
+  document.body.appendChild(panel);
+  roleBar.insertBefore(gearBtn, roleBar.querySelector('.notif-bell-wrap'));
+
+  function openSettings() {
+    document.getElementById('settingsTokenInput').value = gistSettings.token || '';
+    document.getElementById('settingsGistInput').value = gistSettings.gistId || '';
+    document.getElementById('settingsStatus').textContent = '';
+    panel.style.display = 'flex';
+  }
+  function closeSettings() { panel.style.display = 'none'; }
+
+  gearBtn.addEventListener('click', (e) => { e.stopPropagation(); openSettings(); });
+  document.getElementById('settingsClose').addEventListener('click', closeSettings);
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    const token = document.getElementById('settingsTokenInput').value.trim();
+    const gistId = document.getElementById('settingsGistInput').value.trim();
+    const statusEl = document.getElementById('settingsStatus');
+    if (!token) { statusEl.textContent = '&#9888; Token is required.'; statusEl.style.color='var(--accent-red)'; return; }
+    gistSettings.token = token;
+    gistSettings.gistId = gistId;
+    saveSettings();
+    statusEl.style.color = 'var(--accent-yellow)';
+    if (!gistSettings.gistId) {
+      statusEl.textContent = 'Creating new Gist\u2026';
+      const id = await createGist();
+      if (id) {
+        document.getElementById('settingsGistInput').value = id;
+        statusEl.textContent = `\u2713 Gist created! ID: ${id}\nShare this ID with all editors.`;
+        statusEl.style.color = 'var(--accent-green)';
+      } else {
+        statusEl.textContent = '\u2717 Failed. Does your token have gist scope?';
+        statusEl.style.color = 'var(--accent-red)';
+      }
+    } else {
+      statusEl.textContent = 'Connecting\u2026';
+      await pullFromGist();
+      const dot = document.getElementById('syncDot');
+      if (dot.classList.contains('synced')) {
+        statusEl.textContent = '\u2713 Connected and synced.'; statusEl.style.color = 'var(--accent-green)';
+      } else {
+        statusEl.textContent = '\u2717 Could not connect. Check your token and Gist ID.'; statusEl.style.color = 'var(--accent-red)';
+      }
+    }
+  });
+
+  document.getElementById('syncNowBtn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settingsStatus');
+    statusEl.textContent = 'Pulling latest\u2026'; statusEl.style.color = 'var(--accent-yellow)';
+    await pullFromGist();
+    statusEl.textContent = '\u2713 Done.'; statusEl.style.color = 'var(--accent-green)';
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!panel.contains(e.target) && !gearBtn.contains(e.target)) closeSettings();
+  });
+})();
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
+loadSettings();
+loadLocal(); // restore last session from localStorage
 renderTable();
 renderCalendar();
 drawColorWheel();
 updateNotifBadge();
+if (gistSettings.token && gistSettings.gistId) {
+  setTimeout(pullFromGist, 600); // pull latest on load
+} else {
+  setSyncDot('none'); // show "Not configured" until token is set
+}
 
 // ── CEP BRIDGE (Adobe Premiere Pro) ──────────────────────────────────────────
 // Robust bidirectional sync with Premiere Pro CEP panel
