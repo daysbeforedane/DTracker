@@ -334,8 +334,49 @@
   .upload-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77,159,255,0.06); }
 
   /* Add project btn */
-  .top-bar .add-project-btn { background: rgba(0,232,122,0.08); border: 1px solid var(--accent-green); color: var(--accent-green); padding: 4px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-  .top-bar .add-project-btn:hover { background: rgba(0,232,122,0.15); }
+// Add New Project Button
+document.getElementById('addProjectBtn').addEventListener('click', () => {
+  const newId = Date.now();
+  const newProj = {
+    id: newId,
+    name: '',
+    color: randomColor(),
+    assigned: [],
+    deadline: '',
+    deadlineDay: null,
+    deadlineMonth: state.currentMonth,
+    deadlineYear: state.currentYear,
+    status: 'wip',
+    frameLink: '',
+    version: '',
+    footage: [],
+    finished: false,
+    isNew: false
+  };
+
+  state.projects.push(newProj);
+  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects)); // Save immediately
+
+  renderTable();
+  renderCalendar();
+  drawLines();
+
+  // Auto-focus the new project name for editing
+  setTimeout(() => {
+    const rows = document.querySelectorAll('.project-row');
+    if (rows.length > 0) {
+      const lastRow = rows[rows.length - 1];
+      const nameInput = lastRow.querySelector('.proj-name-input');
+      if (nameInput) {
+        nameInput.readOnly = false;
+        nameInput.classList.add('editable');
+        nameInput.style.cursor = 'text';
+        nameInput.focus();
+        nameInput.select();
+      }
+    }
+  }, 50);
+});
 
   /* ─── EDITOR POPUP ─── */
   .editor-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; z-index: 200; display: none; flex-direction: column; gap: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 180px; }
