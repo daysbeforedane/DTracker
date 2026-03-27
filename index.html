@@ -135,10 +135,10 @@
   .opacity-icon-btn { position: relative; background: var(--row); border: 1px solid var(--border); border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-mid); transition: border-color 0.15s, color 0.15s; }
   .opacity-icon-btn:hover { border-color: var(--border-light); color: var(--text); }
   .opacity-icon-btn svg { opacity: 0.7; pointer-events: none; }
-  .opacity-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 6px; padding: 10px 8px 6px; display: none; flex-direction: column; align-items: center; gap: 5px; box-shadow: 0 6px 24px rgba(0,0,0,0.8); z-index: 9999; min-width: 36px; }
+  .opacity-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 6px; padding: 8px 10px; display: none; flex-direction: row; align-items: center; gap: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.8); z-index: 9999; min-width: 160px; }
   .opacity-icon-btn.open .opacity-popup { display: flex; }
-  .opacity-popup input[type=range] { writing-mode: vertical-lr; direction: rtl; width: 4px; height: 60px; accent-color: var(--accent-green); cursor: pointer; appearance: slider-vertical; -webkit-appearance: slider-vertical; }
-  .opacity-popup span { font-size: 8px; font-family: var(--mono); color: var(--text-dim); white-space: nowrap; }
+  .opacity-popup input[type=range] { writing-mode: horizontal-tb; direction: ltr; width: 100px; height: 4px; accent-color: var(--accent-green); cursor: pointer; appearance: auto; -webkit-appearance: auto; flex: 1; }
+  .opacity-popup span { font-size: 8px; font-family: var(--mono); color: var(--text-dim); white-space: nowrap; min-width: 30px; text-align: right; }
 
   /* ─── MAIN BODY ─── */
   .main-body { display: flex; flex: 1; overflow: hidden; }
@@ -1315,13 +1315,23 @@ document.getElementById('nextYear').addEventListener('click', (e) => { e.stopPro
     if (willOpen) {
       const popup = btn.querySelector('.opacity-popup');
       const rect = btn.getBoundingClientRect();
-      popup.style.left = (rect.left+rect.width/2-18)+'px';
-      popup.style.top = (rect.top-popup.offsetHeight-8)+'px';
-      requestAnimationFrame(() => { const h=popup.offsetHeight; popup.style.top=(rect.top-h-8)+'px'; });
+      // Position horizontally below the button, right-aligned
+      requestAnimationFrame(() => {
+        const pw = popup.offsetWidth || 180;
+        let left = rect.right - pw;
+        if (left < 4) left = 4;
+        popup.style.left = left + 'px';
+        popup.style.top = (rect.bottom + 6) + 'px';
+      });
     }
   });
 });
-document.getElementById('imgOpacity').addEventListener('input', function() { document.getElementById('imgOpacityVal').textContent=this.value+'%'; document.documentElement.style.setProperty('--img-opacity',this.value/100); });
+document.getElementById('imgOpacity').addEventListener('input', function() {
+  document.getElementById('imgOpacityVal').textContent=this.value+'%';
+  document.documentElement.style.setProperty('--img-opacity',this.value/100);
+  const bgImg = document.getElementById('calBgImg');
+  if (bgImg) bgImg.style.opacity = this.value/100;
+});
 document.getElementById('calOpacity').addEventListener('input', function() { document.getElementById('calOpacityVal').textContent=this.value+'%'; const bg=document.getElementById('calBgLayer'); if(bg) bg.style.opacity=this.value/100; });
 
 // ── COLUMN DRAG RESIZE ────────────────────────────────────────────────────────
@@ -1356,21 +1366,31 @@ function applyColWidths() {
 })();
 
 // ── IMAGE UPLOAD ──────────────────────────────────────────────────────────────
+function applyCalImage(dataUrl) {
+  const area = document.getElementById('calImgArea');
+  area.innerHTML = `
+    <img src="${dataUrl}" alt="bg" id="calBgImg" style="width:100%;height:100%;object-fit:cover;opacity:var(--img-opacity);transition:opacity 0.2s;">
+    <label class="img-drop-zone" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:2;" title="Change image">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="0.9"/><path d="M5.5 3.5v4M3.5 5.5h4" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/></svg>
+      Change
+      <input type="file" accept="image/*,.gif" id="calChangeInput" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
+    </label>
+  `;
+  // Re-attach change listener for the new input
+  document.getElementById('calChangeInput').addEventListener('change', function() {
+    const file = this.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = (ev) => applyCalImage(ev.target.result);
+    r.readAsDataURL(file);
+  });
+}
+
 document.getElementById('imgUpload').addEventListener('change', function() {
   const file = this.files[0]; if(!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
-    const area = document.getElementById('calImgArea');
-    area.innerHTML = `
-      <img src="${e.target.result}" alt="bg" style="width:100%;height:100%;object-fit:cover;opacity:var(--img-opacity);transition:opacity 0.2s;">
-      <label class="img-drop-zone" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:2;" title="Change image">
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="0.9"/><path d="M5.5 3.5v4M3.5 5.5h4" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/></svg>
-        Change
-        <input type="file" accept="image/*,.gif" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="(function(f){if(!f)return;const r=new FileReader();r.onload=(ev)=>{document.getElementById('calImgArea').querySelector('img').src=ev.target.result;};r.readAsDataURL(f);})(this.files[0])">
-      </label>
-    `;
-  };
+  reader.onload = (e) => applyCalImage(e.target.result);
   reader.readAsDataURL(file);
+  this.value = '';
 });
 
 // ── COLOR PICKER ──────────────────────────────────────────────────────────────
@@ -1688,21 +1708,180 @@ drawColorWheel();
 updateNotifBadge();
 
 // ── CEP BRIDGE (Adobe Premiere Pro) ──────────────────────────────────────────
-// If running inside Premiere Pro CEP panel, expose a bridge
-if (typeof window.__adobe_cep__ !== 'undefined' || window.location.protocol === 'file:') {
+// Robust bidirectional sync with Premiere Pro CEP panel
+(function initCEPBridge() {
+  const isCEP = typeof window.__adobe_cep__ !== 'undefined';
+  const isFileProtocol = window.location.protocol === 'file:';
+
+  if (!isCEP && !isFileProtocol) return; // Running in browser — skip
+
+  let cs = null;
+  let syncInterval = null;
+  let knownProjectIds = new Set(state.projects.map(p => p.id));
+
+  // Try to initialise CSInterface
   try {
-    const csInterface = new CSInterface();
-    // Listen for events from ExtendScript
-    csInterface.addEventListener('com.dtracker.newproject', (event) => {
-      const data = JSON.parse(event.data);
-      window.simulateAssignment(data.name, data.assigner);
-    });
-    // Export project list to ExtendScript
-    window.getDTrackerProjects = () => JSON.stringify(state.projects);
-  } catch(e) {
-    // CSInterface not available (running in browser), no-op
+    cs = new CSInterface(); // eslint-disable-line no-undef
+  } catch (e) {
+    console.warn('DTracker CEP: CSInterface not available.', e);
+    return;
   }
-}
+
+  // ── Mark as syncing ──
+  function markSyncing() {
+    const dot = document.getElementById('syncDot');
+    const lbl = document.getElementById('syncLabel');
+    dot.className = 'sync-dot syncing';
+    lbl.textContent = 'Syncing…';
+  }
+  function markSynced() {
+    const dot = document.getElementById('syncDot');
+    const lbl = document.getElementById('syncLabel');
+    dot.className = 'sync-dot synced';
+    lbl.textContent = 'Synced';
+  }
+  function markError() {
+    const dot = document.getElementById('syncDot');
+    const lbl = document.getElementById('syncLabel');
+    dot.className = 'sync-dot';
+    dot.style.background = 'var(--accent-red)';
+    lbl.textContent = 'Sync error';
+  }
+
+  // ── Push current project list to ExtendScript ──
+  function pushProjectsToHost() {
+    if (!cs) return;
+    const payload = JSON.stringify(state.projects);
+    const escaped = payload.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    cs.evalScript(`DTracker.receiveProjects('${escaped}')`, (result) => {
+      if (result === 'EvalScript error') markError();
+    });
+  }
+
+  // ── Pull projects from host (ExtendScript stores them in a global) ──
+  function pullProjectsFromHost() {
+    if (!cs) return;
+    markSyncing();
+    cs.evalScript('DTracker.getProjects()', (result) => {
+      if (!result || result === 'EvalScript error' || result === 'undefined') {
+        markSynced(); // No data yet — that's fine
+        return;
+      }
+      try {
+        const incoming = JSON.parse(result);
+        if (!Array.isArray(incoming)) { markSynced(); return; }
+
+        // Detect newly assigned projects (IDs not in our known set)
+        const newOnes = incoming.filter(p => !knownProjectIds.has(p.id));
+        newOnes.forEach(p => {
+          p.isNew = true;
+          state.projects.push(p);
+          knownProjectIds.add(p.id);
+          addNotification(
+            'New Project Assigned',
+            `"${p.name || 'Unnamed'}" was assigned to you.`,
+            p.id
+          );
+        });
+
+        // Merge updates for existing projects (don't overwrite local edits in flight)
+        incoming.filter(p => knownProjectIds.has(p.id)).forEach(incoming => {
+          const local = state.projects.find(lp => lp.id === incoming.id);
+          if (local) {
+            // Merge: host wins on status/deadline/assigned; local wins on name/version/footage
+            local.status = incoming.status ?? local.status;
+            local.deadline = incoming.deadline ?? local.deadline;
+            local.deadlineDay = incoming.deadlineDay ?? local.deadlineDay;
+            local.deadlineMonth = incoming.deadlineMonth ?? local.deadlineMonth;
+            local.deadlineYear = incoming.deadlineYear ?? local.deadlineYear;
+            local.assigned = incoming.assigned ?? local.assigned;
+          }
+        });
+
+        if (newOnes.length > 0 || incoming.some(p => knownProjectIds.has(p.id))) {
+          renderTable(); renderCalendar(); drawLines();
+        }
+        markSynced();
+      } catch (err) {
+        console.warn('DTracker CEP: Failed to parse host projects.', err);
+        markSynced();
+      }
+    });
+  }
+
+  // ── Listen for push events from ExtendScript ──
+  cs.addEventListener('com.dtracker.newproject', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      const newId = data.id || Date.now();
+      if (!knownProjectIds.has(newId)) {
+        const proj = {
+          id: newId,
+          name: data.name || 'New Project',
+          color: data.color || randomColor(),
+          assigned: data.assigned || [],
+          deadline: data.deadline || '',
+          deadlineDay: data.deadlineDay || null,
+          deadlineMonth: data.deadlineMonth ?? state.currentMonth,
+          deadlineYear: data.deadlineYear ?? state.currentYear,
+          status: data.status || 'wip',
+          frameLink: data.frameLink || '',
+          version: data.version || '',
+          footage: data.footage || [],
+          finished: false,
+          isNew: true,
+        };
+        state.projects.push(proj);
+        knownProjectIds.add(newId);
+        setSyncing();
+        addNotification(
+          'New Project Assigned',
+          `"${proj.name}" was assigned to you${data.assigner ? ' by ' + data.assigner : ''}.`,
+          proj.id
+        );
+        renderTable(); renderCalendar(); drawLines();
+      }
+    } catch (e) {
+      console.warn('DTracker CEP: Bad event data.', e);
+    }
+  });
+
+  cs.addEventListener('com.dtracker.sync', () => {
+    pullProjectsFromHost();
+  });
+
+  // ── Auto-push whenever state changes (hook into setSyncing) ──
+  const _origSetSyncing = window.setSyncing || setSyncing;
+  const _patchedSetSyncing = function() {
+    _origSetSyncing();
+    pushProjectsToHost();
+  };
+  // Override the global so all existing callers auto-push
+  window.setSyncing = _patchedSetSyncing;
+
+  // ── Poll every 5 seconds to catch changes made on the host side ──
+  syncInterval = setInterval(pullProjectsFromHost, 5000);
+
+  // ── Also pull once immediately on load ──
+  setTimeout(pullProjectsFromHost, 800);
+
+  // ── Expose helpers so ExtendScript can call back ──
+  window.getDTrackerProjects = () => JSON.stringify(state.projects);
+  window.dtrackerReceiveProject = (jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr);
+      if (data && data.id && !knownProjectIds.has(data.id)) {
+        data.isNew = true;
+        state.projects.push(data);
+        knownProjectIds.add(data.id);
+        addNotification('New Project Assigned', `"${data.name || 'Unnamed'}" was assigned to you.`, data.id);
+        renderTable(); renderCalendar(); drawLines();
+      }
+    } catch(e) { console.warn('dtrackerReceiveProject parse error', e); }
+  };
+
+  console.log('DTracker CEP bridge initialised. Polling every 5s.');
+})();
 </script>
 </body>
 </html>
