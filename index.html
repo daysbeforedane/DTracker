@@ -767,18 +767,19 @@ document.getElementById('notifClearBtn').addEventListener('click', (e) => {
 });
 
 // ── SYNC SIMULATION ───────────────────────────────────────────────────────────
+// setSyncing is called throughout the app on every local change.
+// It just marks the dot yellow; the Gist engine (setSyncDot) owns the final state.
 function setSyncing() {
   const dot = document.getElementById('syncDot');
   const label = document.getElementById('syncLabel');
-  dot.className = 'sync-dot syncing';
-  label.textContent = 'Syncing…';
-  clearTimeout(setSyncing._t);
-  setSyncing._t = setTimeout(() => {
-    dot.className = 'sync-dot synced';
-    label.textContent = 'Synced';
-  }, 1200);
+  // Only pulse yellow if we actually have sync configured; otherwise stay quiet
+  if (dot && label) {
+    dot.className = 'sync-dot syncing';
+    label.textContent = 'Saving…';
+  }
 }
 setSyncing._t = null;
+
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────────────────
 let ctxProjId = null;
@@ -1834,9 +1835,18 @@ async function createGist() {
   } catch(e) { setSyncDot('error'); return null; }
 }
 
-// Hook setSyncing so every local change auto-pushes
-const _origSetSyncing = setSyncing;
-setSyncing = function() { _origSetSyncing(); persistLocal(); pushToGist(); };
+// Every local change → persist + push to Gist
+// (setSyncing is already defined above; we redefine it here now that Gist engine is loaded)
+setSyncing = function() {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  if (dot && label && gistSettings.token) {
+    dot.className = 'sync-dot syncing';
+    label.textContent = 'Saving…';
+  }
+  persistLocal();
+  pushToGist();
+};
 
 // Poll every 8 seconds
 setInterval(pullFromGist, 8000);
@@ -1947,180 +1957,187 @@ if (gistSettings.token && gistSettings.gistId) {
   setSyncDot('none'); // show "Not configured" until token is set
 }
 
+// ── CEP INSTALL GUIDE MODAL ───────────────────────────────────────────────────
+(function buildInstallGuide() {
+  // Add install button to role bar (only visible on the web version)
+  const roleBar = document.querySelector('.role-bar');
+  const installBtn = document.createElement('div');
+  installBtn.id = 'installBtn';
+  installBtn.style.cssText = 'cursor:pointer;padding:0 8px;height:24px;border-radius:4px;background:rgba(77,159,255,0.1);border:1px solid var(--accent-blue);display:flex;align-items:center;gap:5px;color:var(--accent-blue);font-family:var(--mono);font-size:9px;letter-spacing:0.05em;flex-shrink:0;transition:background 0.15s;';
+  installBtn.title = 'How editors install the Premiere panel';
+  installBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v5M5 6l-2-2M5 6l2-2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 8.5h7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg> INSTALL GUIDE`;
+
+  const modal = document.createElement('div');
+  modal.id = 'installModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:none;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid var(--border-light);border-radius:10px;width:500px;max-width:94vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.9);">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent-blue);letter-spacing:0.1em;">EDITOR INSTALL GUIDE — PREMIERE PRO CEP PANEL</span>
+        <span id="installModalClose" style="cursor:pointer;color:var(--text-dim);font-size:18px;line-height:1;">&#215;</span>
+      </div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:16px;font-family:var(--sans);font-size:11px;color:var(--text-mid);line-height:1.7;">
+
+        <div style="background:rgba(0,232,122,0.06);border:1px solid rgba(0,232,122,0.2);border-radius:6px;padding:10px 14px;">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-green);letter-spacing:0.08em;margin-bottom:6px;">HOW IT WORKS</div>
+          <div><b style="color:var(--text);">You (Assigner)</b> use this website to add &amp; manage projects.<br>
+          <b style="color:var(--text);">Editors</b> install this same file as a Premiere Pro panel — they see the same live project list, get notified when something is assigned to them, and update status from inside Premiere.</div>
+        </div>
+
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-blue);letter-spacing:0.08em;margin-bottom:8px;">STEP 1 — DOWNLOAD THE FILE</div>
+          <div>Send each editor this URL and tell them to <b style="color:var(--text);">Save As</b> → <code style="background:var(--row);padding:1px 5px;border-radius:3px;font-size:10px;">index.html</code>:<br>
+          <a href="https://daysbeforedane.github.io/DTracker/" target="_blank" style="color:var(--accent-blue);word-break:break-all;">https://daysbeforedane.github.io/DTracker/</a></div>
+        </div>
+
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-blue);letter-spacing:0.08em;margin-bottom:8px;">STEP 2 — CREATE THE CEP EXTENSION FOLDER</div>
+          <div>On the editor's machine, create this exact folder structure:</div>
+          <div style="background:var(--row);border-radius:5px;padding:10px 12px;margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--accent-green);line-height:2;">
+            <b style="color:var(--text-dim);">Windows:</b><br>
+            C:\Users\<span style="color:var(--accent-yellow);">[username]</span>\AppData\Roaming\Adobe\CEP\extensions\DTracker\<br><br>
+            <b style="color:var(--text-dim);">Mac:</b><br>
+            ~/Library/Application Support/Adobe/CEP/extensions/DTracker/
+          </div>
+        </div>
+
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-blue);letter-spacing:0.08em;margin-bottom:8px;">STEP 3 — ADD TWO FILES TO THAT FOLDER</div>
+          <div>Inside the <code style="background:var(--row);padding:1px 5px;border-radius:3px;font-size:10px;">DTracker</code> folder, place:</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <div style="background:var(--row);border-radius:5px;padding:8px 12px;">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--accent-yellow);margin-bottom:3px;">① index.html</div>
+              <div style="font-size:10px;">The file downloaded in Step 1.</div>
+            </div>
+            <div style="background:var(--row);border-radius:5px;padding:8px 12px;">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--accent-yellow);margin-bottom:3px;">② CSXS/manifest.xml</div>
+              <div style="font-size:10px;">Create a subfolder called <code style="background:#252525;padding:1px 4px;border-radius:3px;">CSXS</code> and inside it create <code style="background:#252525;padding:1px 4px;border-radius:3px;">manifest.xml</code> with this content:</div>
+              <pre style="background:#111;border-radius:4px;padding:8px;margin-top:6px;font-size:8px;color:var(--accent-green);overflow-x:auto;white-space:pre-wrap;line-height:1.6;">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;ExtensionManifest Version="7.0" ExtensionBundleId="com.dtracker.panel"
+  ExtensionBundleVersion="1.0" ExtensionBundleName="DTracker"&gt;
+  &lt;ExtensionList&gt;
+    &lt;Extension Id="com.dtracker.panel" Version="1.0"/&gt;
+  &lt;/ExtensionList&gt;
+  &lt;ExecutionEnvironment&gt;
+    &lt;HostList&gt;
+      &lt;Host Name="PPRO" Version="[0.0,99.9]"/&gt;
+    &lt;/HostList&gt;
+    &lt;LocaleList&gt;
+      &lt;Locale Code="All"/&gt;
+    &lt;/LocaleList&gt;
+    &lt;RequiredRuntimeList&gt;
+      &lt;RequiredRuntime Name="CSXS" Version="11.0"/&gt;
+    &lt;/RequiredRuntimeList&gt;
+  &lt;/ExecutionEnvironment&gt;
+  &lt;DispatchInfoList&gt;
+    &lt;Extension Id="com.dtracker.panel"&gt;
+      &lt;DispatchInfo&gt;
+        &lt;Resources&gt;
+          &lt;MainPath&gt;./index.html&lt;/MainPath&gt;
+        &lt;/Resources&gt;
+        &lt;Lifecycle&gt;
+          &lt;AutoVisible&gt;true&lt;/AutoVisible&gt;
+        &lt;/Lifecycle&gt;
+        &lt;UI&gt;
+          &lt;Type&gt;Panel&lt;/Type&gt;
+          &lt;Menu&gt;DTracker&lt;/Menu&gt;
+          &lt;Geometry&gt;
+            &lt;Size&gt;&lt;Height&gt;600&lt;/Height&gt;&lt;Width&gt;900&lt;/Width&gt;&lt;/Size&gt;
+            &lt;MinSize&gt;&lt;Height&gt;300&lt;/Height&gt;&lt;Width&gt;500&lt;/Width&gt;&lt;/MinSize&gt;
+          &lt;/Geometry&gt;
+        &lt;/UI&gt;
+      &lt;/DispatchInfo&gt;
+    &lt;/Extension&gt;
+  &lt;/DispatchInfoList&gt;
+&lt;/ExtensionManifest&gt;</pre>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-blue);letter-spacing:0.08em;margin-bottom:8px;">STEP 4 — ENABLE UNSIGNED EXTENSIONS (ONE TIME)</div>
+          <div>Adobe blocks unsigned panels by default. Run this <b style="color:var(--text);">once</b> on the editor's machine:</div>
+          <div style="background:var(--row);border-radius:5px;padding:8px 12px;margin-top:6px;font-family:var(--mono);font-size:9px;line-height:1.8;">
+            <b style="color:var(--text-dim);">Windows (run as Administrator in PowerShell):</b><br>
+            <span style="color:var(--accent-green);">Set-ItemProperty -Path "HKCU:\Software\Adobe\CSXS.11" -Name PlayerDebugMode -Value 1</span><br><br>
+            <b style="color:var(--text-dim);">Mac (run in Terminal):</b><br>
+            <span style="color:var(--accent-green);">defaults write com.adobe.CSXS.11 PlayerDebugMode 1</span>
+          </div>
+          <div style="margin-top:6px;font-size:10px;color:var(--text-dim);">Replace <code style="background:var(--row);padding:1px 4px;border-radius:3px;">CSXS.11</code> with your Premiere version's CSXS version if needed (Premiere 2024+ uses 11).</div>
+        </div>
+
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent-blue);letter-spacing:0.08em;margin-bottom:8px;">STEP 5 — OPEN IN PREMIERE &amp; CONFIGURE SYNC</div>
+          <ol style="padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:11px;">
+            <li>Restart Premiere Pro</li>
+            <li>Go to <b style="color:var(--text);">Window → Extensions → DTracker</b></li>
+            <li>Click the <b style="color:var(--text);">⚙ gear icon</b> in the panel</li>
+            <li>Enter the <b style="color:var(--text);">same GitHub Token + Gist ID</b> that you use on the website</li>
+            <li>Click <b style="color:var(--text);">SAVE &amp; CONNECT</b> — the dot will turn green</li>
+            <li>The editor will now see all projects and get notified when assigned</li>
+          </ol>
+        </div>
+
+        <div style="background:rgba(255,194,51,0.06);border:1px solid rgba(255,194,51,0.2);border-radius:6px;padding:10px 14px;font-size:10px;">
+          <b style="color:var(--accent-yellow);">&#9888; Important:</b> Every editor uses the <b>same Gist ID</b> but can use their own GitHub token (or you can share yours — the token only has gist access, nothing else).
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  roleBar.insertBefore(installBtn, roleBar.querySelector('#gearBtn'));
+
+  installBtn.addEventListener('click', (e) => { e.stopPropagation(); modal.style.display = 'flex'; });
+  document.getElementById('installModalClose').addEventListener('click', () => { modal.style.display = 'none'; });
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+})();
+
 // ── CEP BRIDGE (Adobe Premiere Pro) ──────────────────────────────────────────
-// Robust bidirectional sync with Premiere Pro CEP panel
+// Runs only when loaded inside a CEP panel (file: protocol or __adobe_cep__ present)
 (function initCEPBridge() {
   const isCEP = typeof window.__adobe_cep__ !== 'undefined';
   const isFileProtocol = window.location.protocol === 'file:';
-
-  if (!isCEP && !isFileProtocol) return; // Running in browser — skip
+  if (!isCEP && !isFileProtocol) return;
 
   let cs = null;
-  let syncInterval = null;
-  let knownProjectIds = new Set(state.projects.map(p => p.id));
+  try { cs = new CSInterface(); } // eslint-disable-line no-undef
+  catch (e) { console.warn('DTracker CEP: CSInterface not available.', e); return; }
 
-  // Try to initialise CSInterface
-  try {
-    cs = new CSInterface(); // eslint-disable-line no-undef
-  } catch (e) {
-    console.warn('DTracker CEP: CSInterface not available.', e);
-    return;
-  }
+  // Once CEP is confirmed, hide the install guide button (not needed inside Premiere)
+  const ib = document.getElementById('installBtn');
+  if (ib) ib.style.display = 'none';
 
-  // ── Mark as syncing ──
-  function markSyncing() {
-    const dot = document.getElementById('syncDot');
-    const lbl = document.getElementById('syncLabel');
-    dot.className = 'sync-dot syncing';
-    lbl.textContent = 'Syncing…';
-  }
-  function markSynced() {
-    const dot = document.getElementById('syncDot');
-    const lbl = document.getElementById('syncLabel');
-    dot.className = 'sync-dot synced';
-    lbl.textContent = 'Synced';
-  }
-  function markError() {
-    const dot = document.getElementById('syncDot');
-    const lbl = document.getElementById('syncLabel');
-    dot.className = 'sync-dot';
-    dot.style.background = 'var(--accent-red)';
-    lbl.textContent = 'Sync error';
-  }
+  // Pull from Gist on load (same engine as web version)
+  setTimeout(pullFromGist, 1000);
 
-  // ── Push current project list to ExtendScript ──
-  function pushProjectsToHost() {
-    if (!cs) return;
-    const payload = JSON.stringify(state.projects);
-    const escaped = payload.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    cs.evalScript(`DTracker.receiveProjects('${escaped}')`, (result) => {
-      if (result === 'EvalScript error') markError();
-    });
-  }
-
-  // ── Pull projects from host (ExtendScript stores them in a global) ──
-  function pullProjectsFromHost() {
-    if (!cs) return;
-    markSyncing();
-    cs.evalScript('DTracker.getProjects()', (result) => {
-      if (!result || result === 'EvalScript error' || result === 'undefined') {
-        markSynced(); // No data yet — that's fine
-        return;
-      }
-      try {
-        const incoming = JSON.parse(result);
-        if (!Array.isArray(incoming)) { markSynced(); return; }
-
-        // Detect newly assigned projects (IDs not in our known set)
-        const newOnes = incoming.filter(p => !knownProjectIds.has(p.id));
-        newOnes.forEach(p => {
-          p.isNew = true;
-          state.projects.push(p);
-          knownProjectIds.add(p.id);
-          addNotification(
-            'New Project Assigned',
-            `"${p.name || 'Unnamed'}" was assigned to you.`,
-            p.id
-          );
-        });
-
-        // Merge updates for existing projects (don't overwrite local edits in flight)
-        incoming.filter(p => knownProjectIds.has(p.id)).forEach(incoming => {
-          const local = state.projects.find(lp => lp.id === incoming.id);
-          if (local) {
-            // Merge: host wins on status/deadline/assigned; local wins on name/version/footage
-            local.status = incoming.status ?? local.status;
-            local.deadline = incoming.deadline ?? local.deadline;
-            local.deadlineDay = incoming.deadlineDay ?? local.deadlineDay;
-            local.deadlineMonth = incoming.deadlineMonth ?? local.deadlineMonth;
-            local.deadlineYear = incoming.deadlineYear ?? local.deadlineYear;
-            local.assigned = incoming.assigned ?? local.assigned;
-          }
-        });
-
-        if (newOnes.length > 0 || incoming.some(p => knownProjectIds.has(p.id))) {
-          renderTable(); renderCalendar(); drawLines();
-        }
-        markSynced();
-      } catch (err) {
-        console.warn('DTracker CEP: Failed to parse host projects.', err);
-        markSynced();
-      }
-    });
-  }
-
-  // ── Listen for push events from ExtendScript ──
+  // The 8-second Gist poll handles all sync — no separate CEP polling needed.
+  // CEP event listener: if someone fires com.dtracker.newproject from ExtendScript
   cs.addEventListener('com.dtracker.newproject', (event) => {
     try {
       const data = JSON.parse(event.data);
       const newId = data.id || Date.now();
-      if (!knownProjectIds.has(newId)) {
+      const knownIds = new Set(state.projects.map(p => p.id));
+      if (!knownIds.has(newId)) {
         const proj = {
-          id: newId,
-          name: data.name || 'New Project',
-          color: data.color || randomColor(),
-          assigned: data.assigned || [],
-          deadline: data.deadline || '',
+          id: newId, name: data.name || 'New Project', color: data.color || randomColor(),
+          assigned: data.assigned || [], deadline: data.deadline || '',
           deadlineDay: data.deadlineDay || null,
           deadlineMonth: data.deadlineMonth ?? state.currentMonth,
           deadlineYear: data.deadlineYear ?? state.currentYear,
-          status: data.status || 'wip',
-          frameLink: data.frameLink || '',
-          version: data.version || '',
-          footage: data.footage || [],
-          finished: false,
-          isNew: true,
+          status: data.status || 'wip', frameLink: data.frameLink || '',
+          version: data.version || '', footage: data.footage || [],
+          finished: false, isNew: true,
         };
         state.projects.push(proj);
-        knownProjectIds.add(newId);
+        addNotification('New Project Assigned', `"${proj.name}" was assigned to you${data.assigner ? ' by ' + data.assigner : ''}.`, proj.id);
         setSyncing();
-        addNotification(
-          'New Project Assigned',
-          `"${proj.name}" was assigned to you${data.assigner ? ' by ' + data.assigner : ''}.`,
-          proj.id
-        );
         renderTable(); renderCalendar(); drawLines();
       }
-    } catch (e) {
-      console.warn('DTracker CEP: Bad event data.', e);
-    }
+    } catch (e) { console.warn('DTracker CEP event error', e); }
   });
 
-  cs.addEventListener('com.dtracker.sync', () => {
-    pullProjectsFromHost();
-  });
-
-  // ── Auto-push whenever state changes (hook into setSyncing) ──
-  const _origSetSyncing = window.setSyncing || setSyncing;
-  const _patchedSetSyncing = function() {
-    _origSetSyncing();
-    pushProjectsToHost();
-  };
-  // Override the global so all existing callers auto-push
-  window.setSyncing = _patchedSetSyncing;
-
-  // ── Poll every 5 seconds to catch changes made on the host side ──
-  syncInterval = setInterval(pullProjectsFromHost, 5000);
-
-  // ── Also pull once immediately on load ──
-  setTimeout(pullProjectsFromHost, 800);
-
-  // ── Expose helpers so ExtendScript can call back ──
   window.getDTrackerProjects = () => JSON.stringify(state.projects);
-  window.dtrackerReceiveProject = (jsonStr) => {
-    try {
-      const data = JSON.parse(jsonStr);
-      if (data && data.id && !knownProjectIds.has(data.id)) {
-        data.isNew = true;
-        state.projects.push(data);
-        knownProjectIds.add(data.id);
-        addNotification('New Project Assigned', `"${data.name || 'Unnamed'}" was assigned to you.`, data.id);
-        renderTable(); renderCalendar(); drawLines();
-      }
-    } catch(e) { console.warn('dtrackerReceiveProject parse error', e); }
-  };
-
-  console.log('DTracker CEP bridge initialised. Polling every 5s.');
+  console.log('DTracker CEP bridge ready. Sync via Gist every 8s.');
 })();
 </script>
 </body>
