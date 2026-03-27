@@ -1,14 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- DTracker updated on 28 March 2026 - Force rebuild -->
 <title>DTracker — Premiere Pro 2026 Plugin</title>
-  <!-- Force rebuild - 28 March 2026 -->
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -333,68 +328,9 @@
   .upload-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
   .upload-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77,159,255,0.06); }
 
-// ── ADD NEW PROJECT ───────────────────────────────────────────────────────────
-document.getElementById('addProjectBtn').addEventListener('click', () => {
-  const newId = Date.now();
-  const newProj = {
-    id: newId,
-    name: "New Project",
-    color: randomColor(),
-    assigned: [],
-    deadline: "",
-    deadlineDay: null,
-    deadlineMonth: state.currentMonth,
-    deadlineYear: state.currentYear,
-    status: "wip",
-    frameLink: "",
-    version: "",
-    footage: [],
-    finished: false,
-    isNew: true
-  };
-
-  state.projects.unshift(newProj);           // Add at the top
-  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
-
-  renderTable();
-  renderCalendar();
-  drawLines();
-
-  // Auto-focus the new project name so you can type immediately
-  setTimeout(() => {
-    const nameInput = document.querySelector('.proj-name-input');
-    if (nameInput) {
-      nameInput.readOnly = false;
-      nameInput.classList.add('editable');
-      nameInput.style.cursor = 'text';
-      nameInput.focus();
-      nameInput.select();
-    }
-  }, 80);
-});
-  state.projects.push(newProj);
-  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects)); // Save immediately
-
-  renderTable();
-  renderCalendar();
-  drawLines();
-
-  // Auto-focus the new project name for editing
-  setTimeout(() => {
-    const rows = document.querySelectorAll('.project-row');
-    if (rows.length > 0) {
-      const lastRow = rows[rows.length - 1];
-      const nameInput = lastRow.querySelector('.proj-name-input');
-      if (nameInput) {
-        nameInput.readOnly = false;
-        nameInput.classList.add('editable');
-        nameInput.style.cursor = 'text';
-        nameInput.focus();
-        nameInput.select();
-      }
-    }
-  }, 50);
-});
+  /* Add project btn */
+  .top-bar .add-project-btn { background: rgba(0,232,122,0.08); border: 1px solid var(--accent-green); color: var(--accent-green); padding: 4px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .top-bar .add-project-btn:hover { background: rgba(0,232,122,0.15); }
 
   /* ─── EDITOR POPUP ─── */
   .editor-popup { position: fixed; background: #1e1e1e; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; z-index: 200; display: none; flex-direction: column; gap: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 180px; }
@@ -687,22 +623,25 @@ let state = {
   currentMonth: 2,
   showLines: true,
   selectedProject: null,
-  multiSelected: new Set(),
+  multiSelected: new Set(), // multi-select with Ctrl
+  colorPickerTarget: null,
   popupYear: 2026,
-  isEditorMode: false,
+  isEditorMode: false, // false = Assigner, true = Editor
   notifications: [],
-  projects: []                     // Start empty
+  projects: [
+    { id:1, name:'SD_Women_Leader_V1', color:'#e05555', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'wip', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:2, name:'SD_Women_Leader_V1', color:'#4d9fff', assigned:['D'], deadline:'19 Mar', deadlineDay:19, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:3, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:['S'], deadline:'26 Mar', deadlineDay:26, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:4, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:[], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+    { id:5, name:'SD_Women_Leader_V1', color:'#f0c330', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'done', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+  ]
 };
 
-// Load saved projects so they persist after refresh
-const saved = localStorage.getItem('dtracker_projects');
-if (saved) {
-  try {
-    state.projects = JSON.parse(saved);
-  } catch(e) {
-    state.projects = [];
-  }
-}
+// Editor pool — each editor can have a custom avatar image (dataURL)
+const EDITOR_POOL = [
+  { initials: 'D', color: '#5b6cf9', avatarImg: null },
+  { initials: 'S', color: '#e05555', avatarImg: null },
+];
 
 // ── ROLE TOGGLE ───────────────────────────────────────────────────────────────
 const roleToggleEl = document.getElementById('roleToggle');
@@ -833,16 +772,13 @@ function setSyncing() {
   const label = document.getElementById('syncLabel');
   dot.className = 'sync-dot syncing';
   label.textContent = 'Syncing…';
-
   clearTimeout(setSyncing._t);
   setSyncing._t = setTimeout(() => {
     dot.className = 'sync-dot synced';
     label.textContent = 'Synced';
-
-    // Save projects so they persist after refresh
-    localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
   }, 1200);
 }
+setSyncing._t = null;
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────────────────
 let ctxProjId = null;
@@ -1200,44 +1136,31 @@ document.getElementById('imgViewer').addEventListener('click', () => {
   document.getElementById('imgViewer').classList.remove('open');
 });
 
-// ── ADD NEW PROJECT ───────────────────────────────────────────────────────────
+// ── ADD PROJECT ───────────────────────────────────────────────────────────────
 document.getElementById('addProjectBtn').addEventListener('click', () => {
   const newId = Date.now();
-  const newProj = {
-    id: newId,
-    name: 'New Project',
-    color: randomColor(),
-    assigned: [],
-    deadline: '',
-    deadlineDay: null,
-    deadlineMonth: state.currentMonth,
-    deadlineYear: state.currentYear,
-    status: 'wip',
-    frameLink: '',
-    version: '',
-    footage: [],
-    finished: false,
-    isNew: true
-  };
-
-  state.projects.unshift(newProj);   // Add at the top
-  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
-
-  renderTable();
-  renderCalendar();
-  drawLines();
-
-  // Auto edit the name of the new project
-  setTimeout(() => {
-    const nameInput = document.querySelector('.proj-name-input');
-    if (nameInput) {
-      nameInput.readOnly = false;
-      nameInput.classList.add('editable');
-      nameInput.focus();
-      nameInput.select();
-    }
-  }, 100);
+  const newProj = { id:newId, name:'', color:randomColor(), assigned:[], deadline:'', deadlineDay:null, deadlineMonth: state.currentMonth, deadlineYear: state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:false };
+  state.projects.push(newProj);
+  renderTable(); renderCalendar();
+  const rows = document.querySelectorAll('.project-row');
+  const lastRow = rows[rows.length-1];
+  if (lastRow) { const inp = lastRow.querySelector('.proj-name-input'); if (inp) setTimeout(() => { inp.readOnly = false; inp.classList.add('editable'); inp.style.cursor = 'text'; inp.focus(); }, 0); }
 });
+
+// Simulate assigning a project (for demo/testing via console: simulateAssignment())
+window.simulateAssignment = function(name, assigner) {
+  const newId = Date.now();
+  const proj = { id:newId, name: name||'New_Project_V1', color:randomColor(), assigned:['D'], deadline:'', deadlineDay:null, deadlineMonth:state.currentMonth, deadlineYear:state.currentYear, status:'wip', frameLink:'', version:'', footage:[], finished:false, isNew:true };
+  state.projects.push(proj);
+  setSyncing();
+  addNotification('New Project Assigned', `"${proj.name}" was assigned to you by ${assigner||'Assigner'}.`, proj.id);
+  renderTable(); renderCalendar();
+};
+
+function randomColor() {
+  const palette = ['#e05555','#4d9fff','#e07a30','#f0c330','#4dbb6a','#c45fde','#ff6eb0','#00c9b0'];
+  return palette[Math.floor(Math.random()*palette.length)];
+}
 
 // ── RENDER CALENDAR ───────────────────────────────────────────────────────────
 function renderCalendar() {
