@@ -628,19 +628,23 @@ let state = {
   currentMonth: 2,
   showLines: true,
   selectedProject: null,
-  multiSelected: new Set(), // multi-select with Ctrl
+  multiSelected: new Set(),
   colorPickerTarget: null,
   popupYear: 2026,
-  isEditorMode: false, // false = Assigner, true = Editor
+  isEditorMode: false,
   notifications: [],
-  projects: [
-    { id:1, name:'SD_Women_Leader_V1', color:'#e05555', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'wip', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
-    { id:2, name:'SD_Women_Leader_V1', color:'#4d9fff', assigned:['D'], deadline:'19 Mar', deadlineDay:19, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
-    { id:3, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:['S'], deadline:'26 Mar', deadlineDay:26, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
-    { id:4, name:'SD_Women_Leader_V1', color:'#e07a30', assigned:[], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'delayed', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
-    { id:5, name:'SD_Women_Leader_V1', color:'#f0c330', assigned:['D','S'], deadline:'31 Mar', deadlineDay:31, deadlineMonth:2, deadlineYear:2026, status:'done', frameLink:'https://f.io/I27vExXJ', version:'SD_Women_Leader_Lineup_V1', footage:[], finished:false, isNew:false },
+  projects: [          // ←←← THIS IS THE ONE
+    { id:1, name:'SD_Women_Leader_V1', ... },
+    { id:2, name:'SD_Women_Leader_V1', ... },
+    { id:3, ... },
+    ...
   ]
 };
+  // Load saved projects from browser storage (so they don't disappear on refresh)
+const savedProjects = localStorage.getItem('dtracker_projects');
+if (savedProjects) {
+  state.projects = JSON.parse(savedProjects);
+}
 
 // Editor pool — each editor can have a custom avatar image (dataURL)
 const EDITOR_POOL = [
@@ -777,13 +781,16 @@ function setSyncing() {
   const label = document.getElementById('syncLabel');
   dot.className = 'sync-dot syncing';
   label.textContent = 'Syncing…';
+
   clearTimeout(setSyncing._t);
   setSyncing._t = setTimeout(() => {
     dot.className = 'sync-dot synced';
     label.textContent = 'Synced';
+
+    // Save projects so they persist after refresh
+    localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
   }, 1200);
 }
-setSyncing._t = null;
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────────────────
 let ctxProjId = null;
