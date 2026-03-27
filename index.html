@@ -333,26 +333,45 @@
   .upload-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
   .upload-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77,159,255,0.06); }
 
-  /* Add project btn */
-// Add New Project Button
+// ── ADD NEW PROJECT ───────────────────────────────────────────────────────────
 document.getElementById('addProjectBtn').addEventListener('click', () => {
   const newId = Date.now();
   const newProj = {
     id: newId,
-    name: '',
+    name: "New Project",
     color: randomColor(),
     assigned: [],
-    deadline: '',
+    deadline: "",
     deadlineDay: null,
     deadlineMonth: state.currentMonth,
     deadlineYear: state.currentYear,
-    status: 'wip',
-    frameLink: '',
-    version: '',
+    status: "wip",
+    frameLink: "",
+    version: "",
     footage: [],
     finished: false,
-    isNew: false
+    isNew: true
   };
+
+  state.projects.unshift(newProj);   // Add at top
+  localStorage.setItem('dtracker_projects', JSON.stringify(state.projects));
+
+  renderTable();
+  renderCalendar();
+  drawLines();
+
+  // Auto-focus name input
+  setTimeout(() => {
+    const nameInputs = document.querySelectorAll('.proj-name-input');
+    if (nameInputs.length > 0) {
+      const firstInput = nameInputs[0];
+      firstInput.readOnly = false;
+      firstInput.classList.add('editable');
+      firstInput.focus();
+      firstInput.select();
+    }
+  }, 100);
+});
 
   state.projects.push(newProj);
   localStorage.setItem('dtracker_projects', JSON.stringify(state.projects)); // Save immediately
@@ -673,10 +692,10 @@ let state = {
   popupYear: 2026,
   isEditorMode: false,
   notifications: [],
-  projects: []                    // Start empty
+  projects: []                     // Start empty
 };
 
-// Load previously saved projects from browser (persists after refresh)
+// Load saved projects so they persist after refresh
 const saved = localStorage.getItem('dtracker_projects');
 if (saved) {
   try {
@@ -685,12 +704,6 @@ if (saved) {
     state.projects = [];
   }
 }
-
-// Editor pool — each editor can have a custom avatar image (dataURL)
-const EDITOR_POOL = [
-  { initials: 'D', color: '#5b6cf9', avatarImg: null },
-  { initials: 'S', color: '#e05555', avatarImg: null },
-];
 
 // ── ROLE TOGGLE ───────────────────────────────────────────────────────────────
 const roleToggleEl = document.getElementById('roleToggle');
